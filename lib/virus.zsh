@@ -9,7 +9,7 @@ VR_DB_MSG=""
 
 vr_bin() { # programın yolunu bul: vr_bin clamscan
   local d
-  for d in /opt/homebrew/bin /usr/local/bin ${(s.:.)PATH}; do
+  for d in /opt/homebrew/bin /opt/homebrew/sbin /usr/local/bin /usr/local/sbin ${(s.:.)PATH}; do
     [[ -x $d/$1 ]] && { print -r -- "$d/$1"; return 0; }
   done
   return 1
@@ -60,6 +60,55 @@ vr_quarantine() {
   return 0
 }
 
+# ---------- hızlı motor: clamd (tüm çekirdekler) ----------
+# Tarama boyunca geçici bir clamd açılır, bitince kapatılır. Açılamazsa clamscan ile devam edilir.
+VR_CD_PID=""; VR_CDS=""
+VR_CD_CONF="$UEP_DATA/state/clamd.conf"
+VR_CD_SOCK="/tmp/xx-clamd-${UID}.sock"
+
+# taramada atlanan yerler (silinmez, sadece taranmaz). ClamAV regex biçimi.
+vr_excludes() {
+  print -rl -- 'Library/CloudStorage' 'Library/Mobile Documents' '/Dropbox' '/\.Trash' "${VR_QDIR}" \
+    'Library/Caches' '\.photoslibrary' '/node_modules' '/\.git(/|$)'
+}
+
+vr_clamd_start() { # vr_clamd_start <clamscan yolu>
+  local cs=$1 cd db n i e etc
+  local -a dbs
+  cd=$(vr_bin clamd) || return 1
+  VR_CDS=$(vr_bin clamdscan) || return 1
+  etc="${cs:h:h}/etc/clamav"
+  db=$(grep -E '^DatabaseDirectory' "$etc/freshclam.conf" 2>/dev/null | awk '{print $2}' | tail -1)
+  [[ -n $db ]] || db="${cs:h:h}/var/lib/clamav"
+  dbs=( $db/*.(cvd|cld|cud)(N) $db/*.?db(N) )
+  (( ${#dbs} )) || return 1
+  n=$(sysctl -n hw.ncpu 2>/dev/null); [[ $n == <-> ]] || n=4
+  mkdir -p "${VR_CD_CONF:h}"
+  {
+    print -r -- "LocalSocket $VR_CD_SOCK"
+    print -r -- "DatabaseDirectory $db"
+    print -r -- "Foreground yes"
+    print -r -- "MaxThreads $n"
+    print -r -- "MaxQueue $(( n * 10 ))"
+    vr_excludes | while IFS= read -r e; do print -r -- "ExcludePath $e"; done
+  } > "$VR_CD_CONF"
+  rm -f -- "$VR_CD_SOCK"
+  ui_status "$(TF "hızlı motor hazırlanıyor · %s çekirdek..." $n)"
+  "$cd" -c "$VR_CD_CONF" >/dev/null 2>&1 &
+  VR_CD_PID=$!
+  for i in {1..180}; do # virüs listesi belleğe yüklenirken bekle (en fazla 90 sn)
+    kill -0 $VR_CD_PID 2>/dev/null || { VR_CD_PID=""; return 1; }
+    [[ -S $VR_CD_SOCK ]] && "$VR_CDS" -c "$VR_CD_CONF" --ping 1 >/dev/null 2>&1 && return 0
+    sleep 0.5
+  done
+  vr_clamd_stop; return 1
+}
+
+vr_clamd_stop() {
+  [[ -n $VR_CD_PID ]] && { kill $VR_CD_PID 2>/dev/null; wait $VR_CD_PID 2>/dev/null; }
+  VR_CD_PID=""; rm -f -- "$VR_CD_SOCK"
+}
+
 vr_scan() { # vr_scan hizli|tam
   setopt local_options local_traps
   local mode=$1 mname cs log pid t0 i=0 nfound files infected l p vname ok fail cancelled=0 title
@@ -93,13 +142,17 @@ vr_scan() { # vr_scan hizli|tam
 
   mkdir -p "$UEP_DATA/reports"
   log="$UEP_DATA/reports/.scan_$$.log"
-  args=( -r -i
-    "--exclude-dir=Library/CloudStorage" "--exclude-dir=Library/Mobile Documents"
-    "--exclude-dir=/Dropbox" "--exclude-dir=/\.Trash" "--exclude-dir=${VR_QDIR}" )
   : > "$log"
-  $cs $args $exist > "$log" 2>&1 &
+  if vr_clamd_start "$cs"; then
+    "$VR_CDS" -c "$VR_CD_CONF" --multiscan -i $exist > "$log" 2>&1 &
+  else
+    [[ -n $VR_CDS ]] && ui_status "hızlı motor açılamadı · tek çekirdekle devam"
+    args=( -r -i )
+    for p in "${(@f)$(vr_excludes)}"; do args+=("--exclude-dir=$p"); done
+    $cs $args $exist > "$log" 2>&1 &
+  fi
   pid=$!
-  trap 'cancelled=1; kill $pid 2>/dev/null' INT
+  trap 'cancelled=1; kill $pid 2>/dev/null; vr_clamd_stop' INT
 
   spin=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
   local w_scan="taranıyor" w_found="bulunan:" w_cancel="[Ctrl+C] iptal"
@@ -115,13 +168,14 @@ vr_scan() { # vr_scan hizli|tam
   done
   wait $pid 2>/dev/null
   print -rn -- $'\r\e[K\e[?25h'
+  vr_clamd_stop
   el=$(( SECONDS - t0 ))
 
   files=$(grep -E '^Scanned files:' "$log" | grep -oE '[0-9]+' | head -1)
   infected=$(grep -E '^Infected files:' "$log" | grep -oE '[0-9]+' | head -1)
   hits=("${(@f)$(grep ' FOUND$' "$log")}"); hits=(${hits:#})
 
-  if [[ -z $files ]] && (( ! cancelled )) && (( ${#hits} == 0 )); then
+  if [[ -z $files ]] && ! grep -qE '^Infected files:' "$log" && (( ! cancelled )) && (( ${#hits} == 0 )); then
     print -r -- "  ${C_BAD}$(T "✘ Tarama çalışmadı.")${C_RESET}"
     tail -3 "$log" | while IFS= read -r l; do print -r -- "  ${C_DIM}$(ui_cut "$l" 74)${C_RESET}"; done
     rm -f -- "$log"; UEP_REPORT=""
@@ -146,7 +200,7 @@ vr_scan() { # vr_scan hizli|tam
 
   if (( ! cancelled )); then
     mkdir -p "$UEP_DATA/state"
-    print -r -- "$(date +%s)|${mname}|${files:-0}|${#hits}" > "$VR_LAST"
+    print -r -- "$(date +%s)|${mname}|${files:-?}|${#hits}" > "$VR_LAST"
   fi
 
   if (( ${#hits} )); then
@@ -182,7 +236,7 @@ vr_menu() {
     ui_clear; ui_header; print
     ui_section_start "VİRÜS TARAMASI"
     ui_section_row "  ${C_B1}[1]${C_RESET} ${C_B2}▸${C_RESET} ${C_TXT}$(T "Hızlı tarama")${C_RESET}  ${C_DIM}$(T "İndirilenler · Masaüstü · açılış öğeleri")${C_RESET}"
-    ui_section_row "  ${C_B1}[2]${C_RESET} ${C_B2}▸${C_RESET} ${C_TXT}$(T "Tam tarama")${C_RESET}    ${C_DIM}$(T "tüm dosyaların + Uygulamalar · 1-2 saat sürer")${C_RESET}"
+    ui_section_row "  ${C_B1}[2]${C_RESET} ${C_B2}▸${C_RESET} ${C_TXT}$(T "Tam tarama")${C_RESET}    ${C_DIM}$(T "tüm dosyaların + Uygulamalar · tüm çekirdeklerle")${C_RESET}"
     ui_section_row ""
     ui_section_row "  ${C_DIM}$(T "son tarama:") $(vr_last_line)${C_RESET}"
     ui_section_row ""
