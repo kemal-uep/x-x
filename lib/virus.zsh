@@ -66,6 +66,7 @@ VR_CD_PID=""; VR_CDS=""
 VR_CD_CONF="$UEP_DATA/state/clamd.conf"
 VR_CD_SOCK="/tmp/xx-clamd-${UID}.sock"
 VR_CD_LOG="$UEP_DATA/state/clamd_scan.log"   # her temiz dosya bir satır: taranan dosya sayısı buradan sayılır
+VR_CD_PIDF="$UEP_DATA/state/clamd.pid"       # önceki tarama yarıda öldüyse kalan motoru bulmak için
 
 # taramada atlanan yerler (silinmez, sadece taranmaz). ClamAV regex biçimi.
 vr_excludes() {
@@ -97,10 +98,12 @@ vr_clamd_start() { # vr_clamd_start <clamscan yolu>
     print -r -- "LogTime no"
     vr_excludes | while IFS= read -r e; do print -r -- "ExcludePath $e"; done
   } > "$VR_CD_CONF"
+  vr_clamd_stale
   rm -f -- "$VR_CD_SOCK"; : > "$VR_CD_LOG"
   ui_status "$(TF "hızlı motor hazırlanıyor · %s çekirdek..." $n)"
   "$cd" -c "$VR_CD_CONF" >/dev/null 2>&1 &
   VR_CD_PID=$!
+  print -r -- $VR_CD_PID > "$VR_CD_PIDF"
   for i in {1..180}; do # virüs listesi belleğe yüklenirken bekle (en fazla 90 sn)
     kill -0 $VR_CD_PID 2>/dev/null || { VR_CD_PID=""; return 1; }
     [[ -S $VR_CD_SOCK ]] && "$VR_CDS" -c "$VR_CD_CONF" --ping 1 >/dev/null 2>&1 && return 0
@@ -116,7 +119,16 @@ vr_clamd_count() { # hızlı motorun şimdiye kadar taradığı dosya sayısı
 
 vr_clamd_stop() {
   [[ -n $VR_CD_PID ]] && { kill $VR_CD_PID 2>/dev/null; wait $VR_CD_PID 2>/dev/null; }
-  VR_CD_PID=""; rm -f -- "$VR_CD_SOCK"
+  VR_CD_PID=""; rm -f -- "$VR_CD_SOCK" "$VR_CD_PIDF"
+}
+
+vr_clamd_stale() { # önceki taramadan açık kalmış motoru kapat (sadece bizim açtığımız clamd)
+  local old
+  [[ -r $VR_CD_PIDF ]] || return 0
+  old=$(<"$VR_CD_PIDF"); rm -f -- "$VR_CD_PIDF"
+  [[ $old == <-> ]] || return 0
+  [[ $(ps -p $old -o comm= 2>/dev/null) == *clamd ]] && kill $old 2>/dev/null
+  return 0
 }
 
 vr_scan() { # vr_scan hizli|tam
@@ -164,6 +176,7 @@ vr_scan() { # vr_scan hizli|tam
   fi
   pid=$!
   trap 'cancelled=1; kill $pid 2>/dev/null; vr_clamd_stop' INT
+  trap 'kill $pid 2>/dev/null; vr_clamd_stop; rm -f -- "$log" "$VR_CD_LOG"; exit 1' HUP TERM   # pencere kapanırsa da motoru kapat
 
   spin=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
   local w_scan="taranıyor" w_found="bulunan:" w_cancel="[Ctrl+C] iptal" w_files="dosya"
