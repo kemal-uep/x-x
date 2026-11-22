@@ -1,0 +1,5 @@
+# Bu Mac'e özel kayıtlar: depoya girmez
+state/
+reports/
+quarantine/
+.DS_Store

@@ -1,0 +1,46 @@
+#!/bin/zsh
+# UEP
+# Çalıştır: uep
+
+UEP_HOME="${0:A:h}"
+[[ ${LC_ALL:-${LC_CTYPE:-$LANG}} == *UTF-8* ]] || export LC_ALL=en_US.UTF-8
+
+for UEP_MOD in ui security startup config system virus update report leftovers; do
+  source "$UEP_HOME/lib/$UEP_MOD.zsh" || { print -r -- "UEP: lib/$UEP_MOD.zsh yüklenemedi"; exit 1; }
+done
+
+uep_exit() {
+  print -rn -- "${C_RESET}"$'\e[?25h'
+  print
+  exit 0
+}
+trap uep_exit INT TERM
+
+mkdir -p "$UEP_HOME/state" "$UEP_HOME/reports"
+
+[[ -n $UEP_NOSPLASH ]] || ui_splash
+
+# yüklü uygulama listesini arka planda güncelle (sonradan silinenleri bilmek için)
+( lo_bg_inventory ) >/dev/null 2>&1 &
+UEP_BG=$!
+
+while true; do
+  ui_menu
+  ui_key
+  case $REPLY in
+    1) sec_check ;;
+    2) st_check ;;
+    3) cf_check ;;
+    4) sys_check ;;
+    5) vr_menu ;;
+    6) qr_menu ;;
+    7) up_check ;;
+    8) rp_full ;;
+    9) lo_menu ;;
+    0|q|Q)
+      ui_clear
+      print -r -- "  ${C_B2}memento mori${C_RESET}"
+      print
+      exit 0 ;;
+  esac
+done
