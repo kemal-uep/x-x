@@ -45,7 +45,7 @@ uep
 
 | # | Module | What it does |
 |---|--------|--------------|
-| 1 | Security check | FileVault, firewall, Gatekeeper, SIP, auto updates, login settings, remote access ports, apps listening on the network |
+| 1 | Security check | FileVault, firewall, Gatekeeper, XProtect version and age, SIP, auto updates, login settings, remote access ports, app signatures (apps and startup items not approved by Apple), apps listening on the network |
 | 2 | Startup watch | Tracks launch agents, daemons and cron jobs. Shows what is new, changed or removed since last time |
 | 3 | Config file guard | Watches `.zprofile`, `.zshrc`, `/etc/hosts`, SSH keys, `.npmrc`, pip config and more. Flags suspicious lines like `curl … \| sh` |
 | 4 | System report | Battery health, disk space, biggest folders, Trash, Time Machine |
@@ -108,7 +108,7 @@ uep
 
 | # | Bölüm | Ne yapar |
 |---|-------|----------|
-| 1 | Güvenlik kontrolü | FileVault, güvenlik duvarı, Gatekeeper, SIP, oturum, uzaktan erişim |
+| 1 | Güvenlik kontrolü | FileVault, güvenlik duvarı, Gatekeeper, XProtect, SIP, oturum, uzaktan erişim, uygulama imzaları (Apple onaysız uygulama ve açılış öğeleri) |
 | 2 | Başlangıç takibi | Açılışta çalışan öğeleri izler, yeni / değişen / kaldırılanı gösterir |
 | 3 | Ayar dosyası bekçisi | `.zprofile`, `hosts`, SSH anahtarları vb. değişikliklerini gösterir |
 | 4 | Sistem raporu | Pil, disk, yedek |
