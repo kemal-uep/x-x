@@ -327,19 +327,19 @@ lo_move_list() { # $@ = yollar; Çöp Kutusu'na taşır ve sonucu yazar
   LO_SESSION=$(date '+%Y-%m-%d_%H:%M:%S')
   for p in "$@"; do [[ -w ${p:h} ]] || needs_sudo=1; done
   if (( needs_sudo )); then
-    print -r -- "  ${C_DIM}Bazı dosyalar sistem klasöründe. Mac şifren istenecek.${C_RESET}"
-    sudo -v || { print -r -- "  ${C_BAD}Şifre girilmedi, işlem iptal.${C_RESET}"; return 1; }
+    print -r -- "  ${C_DIM}$(T "Bazı dosyalar sistem klasöründe. Mac şifren istenecek.")${C_RESET}"
+    sudo -v || { print -r -- "  ${C_BAD}$(T "Şifre girilmedi, işlem iptal.")${C_RESET}"; return 1; }
   fi
   for p in "$@"; do
-    if lo_trash "$p"; then (( ok += 1 )); ui_report "[çöpe] $p"
-    else (( fail += 1 )); ui_report "[taşınamadı] $p"; print -r -- "  ${C_WARN}! taşınamadı:${C_RESET} ${C_DIM}$(ui_cut_left "${p/#$HOME/~}" 58)${C_RESET}"
+    if lo_trash "$p"; then (( ok += 1 )); ui_report "$(T "[çöpe]") $p"
+    else (( fail += 1 )); ui_report "$(T "[taşınamadı]") $p"; print -r -- "  ${C_WARN}$(T "! taşınamadı:")${C_RESET} ${C_DIM}$(ui_cut_left "${p/#$HOME/~}" 58)${C_RESET}"
     fi
   done
   print
-  print -r -- "  ${C_OK}${C_BOLD}✔ ${ok} öğe Çöp Kutusu'na taşındı.${C_RESET}"
-  (( fail )) && print -r -- "  ${C_WARN}${fail} öğe taşınamadı (macOS koruması olabilir).${C_RESET}"
-  print -r -- "  ${C_WARN}! Çöp Kutusu'nu hemen boşaltma.${C_RESET} ${C_DIM}Birkaç gün programlarını kullan, sorun yoksa boşalt.${C_RESET}"
-  print -r -- "  ${C_DIM}Bir şey ters giderse: Kalıntı temizleyici > [3] Son temizliği geri al.${C_RESET}"
+  print -r -- "  ${C_OK}${C_BOLD}$(TF "✔ %s öğe Çöp Kutusu'na taşındı." $ok)${C_RESET}"
+  (( fail )) && print -r -- "  ${C_WARN}$(TF "%s öğe taşınamadı (macOS koruması olabilir)." $fail)${C_RESET}"
+  print -r -- "  ${C_WARN}$(T "! Çöp Kutusu'nu hemen boşaltma.")${C_RESET} ${C_DIM}$(T "Birkaç gün programlarını kullan, sorun yoksa boşalt.")${C_RESET}"
+  print -r -- "  ${C_DIM}$(T "Bir şey ters giderse: Kalıntı temizleyici > [3] Son temizliği geri al.")${C_RESET}"
   return 0
 }
 
@@ -348,19 +348,19 @@ lo_undo() {
   local -a lines f
   ui_clear; ui_header; print
   if [[ ! -s $LO_LOG ]]; then
-    print -r -- "  ${C_DIM}Geri alınacak bir işlem yok.${C_RESET}"; ui_pause; return
+    print -r -- "  ${C_DIM}$(T "Geri alınacak bir işlem yok.")${C_RESET}"; ui_pause; return
   fi
   last=$(tail -1 "$LO_LOG" | cut -f1)
   lines=("${(@f)$(grep "^${last}"$'\t' "$LO_LOG")}"); lines=(${lines:#})
-  ui_section_start "GERİ AL · ${last//_/ }"
+  ui_section_start "$(T "GERİ AL") · ${last//_/ }"
   for l in $lines; do
     f=("${(@ps:\t:)l}")
     ui_section_row "  ${C_DIM}$(ui_cut_left "${f[2]/#$HOME/~}" 68)${C_RESET}"
   done
   ui_section_end
-  print -rn -- "  ${C_B1}[e]${C_RESET} ${C_TXT}Bunları eski yerlerine geri koy${C_RESET}   ${C_DIM}[⌫ / başka tuş] iptal${C_RESET}  ▸ "
+  print -rn -- "  ${C_B1}$(T "[e]")${C_RESET} ${C_TXT}$(T "Bunları eski yerlerine geri koy")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] iptal")${C_RESET}  ▸ "
   ui_key
-  [[ $REPLY == [eE] ]] || return
+  [[ $REPLY == [eEyY] ]] || return
   for l in $lines; do
     f=("${(@ps:\t:)l}"); src=${f[2]}; dest=${f[3]}
     if [[ -e $src ]]; then (( fail += 1 )); continue; fi
@@ -370,8 +370,8 @@ lo_undo() {
     if [[ -e $src ]]; then (( ok += 1 )); else (( fail += 1 )); fi
   done
   grep -v "^${last}"$'\t' "$LO_LOG" > "$LO_LOG.tmp"; mv -f -- "$LO_LOG.tmp" "$LO_LOG"
-  print -r -- "  ${C_OK}${C_BOLD}✔ ${ok} öğe geri kondu.${C_RESET}"
-  (( fail )) && print -r -- "  ${C_WARN}${fail} öğe geri konamadı (Çöp Kutusu boşaltılmış olabilir).${C_RESET}"
+  print -r -- "  ${C_OK}${C_BOLD}$(TF "✔ %s öğe geri kondu." $ok)${C_RESET}"
+  (( fail )) && print -r -- "  ${C_WARN}$(TF "%s öğe geri konamadı (Çöp Kutusu boşaltılmış olabilir)." $fail)${C_RESET}"
   ui_pause
 }
 
@@ -381,7 +381,7 @@ lo_draw_groups() { # $1 = şüphelileri göster (0/1); gsize/gcount/groups_k/gro
   if (( ${#groups_k} )); then
     ui_section_start "KALINTI · KESİN (silinmiş uygulamalardan)"
     for g in $groups_k; do
-      (( i += 1 )); info="${gcount[$g]} öğe · $(ui_human ${gsize[$g]})"
+      (( i += 1 )); info="$(TF "%s öğe · %s" ${gcount[$g]} "$(ui_human ${gsize[$g]})")"
       dots=$(( UEP_W - 12 - ${#i} - ${#g} - ${#info} )); (( dots < 2 )) && dots=2
       ui_section_row "  ${C_B1}[$i]${C_RESET} ${C_TXT}${g}${C_RESET} ${C_DIM}$(ui_rep . $dots)${C_RESET} ${C_OK}${info}${C_RESET}"
     done
@@ -390,7 +390,7 @@ lo_draw_groups() { # $1 = şüphelileri göster (0/1); gsize/gcount/groups_k/gro
   if (( $1 && ${#groups_s} )); then
     ui_section_start "ŞÜPHELİ · KANIT ZAYIF (önerilmez)"
     for g in $groups_s; do
-      (( i += 1 )); info="${gcount[$g]} öğe · $(ui_human ${gsize[$g]})"
+      (( i += 1 )); info="$(TF "%s öğe · %s" ${gcount[$g]} "$(ui_human ${gsize[$g]})")"
       dots=$(( UEP_W - 12 - ${#i} - ${#g} - ${#info} )); (( dots < 2 )) && dots=2
       ui_section_row "  ${C_B1}[$i]${C_RESET} ${C_DIM}${g} $(ui_rep . $dots)${C_RESET} ${C_WARN}${info}${C_RESET}"
     done
@@ -409,15 +409,15 @@ lo_orphans() {
   lo_index
   if (( ! LO_SPOT_OK )); then
     print
-    print -r -- "  ${C_WARN}! Mac'in arama dizini (Spotlight) şu an kullanılamıyor.${C_RESET}"
-    print -r -- "  ${C_DIM}Bu olmadan hangi programın yüklü olduğundan emin olamam.${C_RESET}"
-    print -r -- "  ${C_DIM}Yanlış bir şey silmemek için tarama durduruldu. Daha sonra tekrar dene.${C_RESET}"
+    print -r -- "  ${C_WARN}$(T "! Mac'in arama dizini (Spotlight) şu an kullanılamıyor.")${C_RESET}"
+    print -r -- "  ${C_DIM}$(T "Bu olmadan hangi programın yüklü olduğundan emin olamam.")${C_RESET}"
+    print -r -- "  ${C_DIM}$(T "Yanlış bir şey silmemek için tarama durduruldu. Daha sonra tekrar dene.")${C_RESET}"
     UEP_REPORT=""; ui_pause; return
   fi
   lo_inventory_update
   lo_load_removed
   lo_history
-  ui_status "${#LO_IDS} program tanındı · ${#LO_REMOVED} silinmiş uygulama biliniyor"
+  ui_status "$(TF "%s program tanındı · %s silinmiş uygulama biliniyor" ${#LO_IDS} ${#LO_REMOVED})"
   ui_status "kanıtlar kontrol ediliyor..."
   lo_find_orphans
 
@@ -431,7 +431,7 @@ lo_orphans() {
 
   if (( ${#groups_k} + ${#groups_s} == 0 )); then
     print
-    print -r -- "  ${C_OK}${C_BOLD}✔ Kalıntı bulunamadı.${C_RESET} ${C_TXT}Temiz.${C_RESET}"
+    print -r -- "  ${C_OK}${C_BOLD}$(T "✔ Kalıntı bulunamadı.")${C_RESET} ${C_TXT}$(T "Temiz.")${C_RESET}"
     UEP_REPORT=""; ui_pause; return
   fi
 
@@ -440,18 +440,18 @@ lo_orphans() {
     lo_draw_groups $show_s
     print
     if (( ${#groups_k} == 0 && ! show_s )); then
-      print -r -- "  ${C_OK}✔ Kesin kalıntı yok.${C_RESET} ${C_DIM}Sadece kanıtı zayıf ${#groups_s} şüpheli grup var.${C_RESET}"
+      print -r -- "  ${C_OK}$(T "✔ Kesin kalıntı yok.")${C_RESET} ${C_DIM}$(TF "Sadece kanıtı zayıf %s şüpheli grup var." ${#groups_s})${C_RESET}"
     fi
     hint=""
-    (( ${#groups} )) && hint="Numaraları yaz (ör: 1 3) · "
-    (( ${#groups_k} )) && hint+="[a] tüm kesinler · "
-    (( ${#groups_s} && ! show_s )) && hint+="[d] ${#groups_s} şüpheliyi göster · "
-    hint+="[⌫] geri"
+    (( ${#groups} )) && hint="$(T "Numaraları yaz (ör: 1 3)") · "
+    (( ${#groups_k} )) && hint+="$(T "[a] tüm kesinler") · "
+    (( ${#groups_s} && ! show_s )) && hint+="$(TF "[d] %s şüpheliyi göster" ${#groups_s}) · "
+    hint+="$(T "[⌫] geri")"
     print -r -- "  ${C_DIM}${hint}${C_RESET}"
-    print -rn -- "  ${C_B1}Seçimin ▸${C_RESET} "
+    print -rn -- "  ${C_B1}$(T "Seçimin ▸")${C_RESET} "
     ui_readline sel || { UEP_REPORT=""; return; }
     [[ -z $sel ]] && { UEP_REPORT=""; return; }
-    if [[ $sel == [dD] ]]; then show_s=1; groups=($groups_k $groups_s); ui_clear; ui_header; continue; fi
+    if [[ $sel == [dDsS] ]]; then show_s=1; groups=($groups_k $groups_s); ui_clear; ui_header; continue; fi
     break
   done
 
@@ -462,7 +462,7 @@ lo_orphans() {
     done
   fi
   if (( ${#chosen} == 0 )); then
-    print -r -- "  ${C_WARN}Geçerli bir numara yok.${C_RESET}"; UEP_REPORT=""; ui_pause; return
+    print -r -- "  ${C_WARN}$(T "Geçerli bir numara yok.")${C_RESET}"; UEP_REPORT=""; ui_pause; return
   fi
 
   for l in $LO_FOUND; do
@@ -472,13 +472,13 @@ lo_orphans() {
   ui_section_start "ÇÖP KUTUSUNA TAŞINACAKLAR"
   for p in $paths; do
     ui_section_row "  ${C_DIM}$(ui_cut_left "${p/#$HOME/~}" 68)${C_RESET}"
-    ui_report "[seçildi] $p"
+    ui_report "$(T "[seçildi]") $p"
   done
   ui_section_end
-  print -rn -- "  ${C_B1}[e]${C_RESET} ${C_TXT}Evet, taşı${C_RESET}   ${C_DIM}[⌫ / başka tuş] iptal${C_RESET}  ▸ "
+  print -rn -- "  ${C_B1}$(T "[e]")${C_RESET} ${C_TXT}$(T "Evet, taşı")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] iptal")${C_RESET}  ▸ "
   ui_key
-  if [[ $REPLY == [eE] ]]; then lo_move_list "${paths[@]}"
-  else print -r -- "  ${C_DIM}İptal edildi. Hiçbir şey taşınmadı.${C_RESET}"
+  if [[ $REPLY == [eEyY] ]]; then lo_move_list "${paths[@]}"
+  else print -r -- "  ${C_DIM}$(T "İptal edildi. Hiçbir şey taşınmadı.")${C_RESET}"
   fi
   UEP_REPORT=""
   ui_pause
@@ -491,38 +491,38 @@ lo_uninstall() {
   local -a apps files dirs
   ui_clear; ui_header
   print
-  print -r -- "  ${C_DIM}[⌫] geri${C_RESET}"
-  print -rn -- "  ${C_B1}Kaldırılacak uygulamanın adından bir parça yaz ▸${C_RESET} "
+  print -r -- "  ${C_DIM}$(T "[⌫] geri")${C_RESET}"
+  print -rn -- "  ${C_B1}$(T "Kaldırılacak uygulamanın adından bir parça yaz ▸")${C_RESET} "
   ui_readline q || return
   [[ -z $q ]] && return
   setopt nocaseglob
   apps=( $UEP_ROOT/Applications/*${q}*.app(N:A) $UEP_ROOT/Applications/*/*${q}*.app(N:A) $HOME/Applications/*${q}*.app(N:A) )
   unsetopt nocaseglob
   apps=( ${(u)apps} )
-  if (( ${#apps} == 0 )); then print -r -- "  ${C_WARN}Bu isimle uygulama bulunamadı.${C_RESET}"; ui_pause; return; fi
+  if (( ${#apps} == 0 )); then print -r -- "  ${C_WARN}$(T "Bu isimle uygulama bulunamadı.")${C_RESET}"; ui_pause; return; fi
 
   print
   for a in $apps; do (( i += 1 )); print -r -- "  ${C_B1}[$i]${C_RESET} ${C_TXT}${a:t:r}${C_RESET} ${C_DIM}${a:h}${C_RESET}"; done
-  print -rn -- "  ${C_B1}Numara ▸${C_RESET} "
+  print -rn -- "  ${C_B1}$(T "Numara ▸")${C_RESET} "
   ui_readline num || return
   [[ $num == <-> ]] && (( num >= 1 && num <= ${#apps} )) || return
   app=${apps[$num]}; name=${app:t:r}
   id=$(lo_bundle_id "$app"); id=${id:l}
 
   if [[ $id == com.apple.* || $app == */System/* ]]; then
-    print -r -- "  ${C_BAD}Bu bir Apple sistem uygulaması. Kaldırılamaz.${C_RESET}"; ui_pause; return
+    print -r -- "  ${C_BAD}$(T "Bu bir Apple sistem uygulaması. Kaldırılamaz.")${C_RESET}"; ui_pause; return
   fi
   if [[ $id == com.adobe.* || $id == com.microsoft.* ]]; then
     print
-    print -r -- "  ${C_WARN}! ${name} kendi kaldırıcısıyla silinmeli.${C_RESET}"
-    print -r -- "  ${C_DIM}Adobe: Creative Cloud > Uygulamalar > ... > Kaldır.${C_RESET}"
-    print -r -- "  ${C_DIM}Sonra [2] Silinmiş uygulamaların kalıntılarını bul ile geride kalanları temizle.${C_RESET}"
-    print -rn -- "  ${C_B1}[d]${C_RESET} ${C_TXT}Yine de devam et${C_RESET}   ${C_DIM}[⌫ / başka tuş] vazgeç${C_RESET} ▸ "
+    print -r -- "  ${C_WARN}$(TF "! %s kendi kaldırıcısıyla silinmeli." "$name")${C_RESET}"
+    print -r -- "  ${C_DIM}$(T "Adobe: Creative Cloud > Uygulamalar > ... > Kaldır.")${C_RESET}"
+    print -r -- "  ${C_DIM}$(T "Sonra [2] Silinmiş uygulamaların kalıntılarını bul ile geride kalanları temizle.")${C_RESET}"
+    print -rn -- "  ${C_B1}$(T "[d]")${C_RESET} ${C_TXT}$(T "Yine de devam et")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] vazgeç")${C_RESET} ▸ "
     ui_key
-    [[ $REPLY == [dD] ]] || return
+    [[ $REPLY == [dDcC] ]] || return
   fi
   if pgrep -xq "$name" 2>/dev/null; then
-    print -r -- "  ${C_WARN}! ${name} şu an açık. Önce kapat, sonra tekrar dene.${C_RESET}"; ui_pause; return
+    print -r -- "  ${C_WARN}$(TF "! %s şu an açık. Önce kapat, sonra tekrar dene." "$name")${C_RESET}"; ui_pause; return
   fi
 
   ui_report_start "uninstall_${name// /_}"
@@ -542,21 +542,21 @@ lo_uninstall() {
     done
   done
 
-  ui_section_start "KALDIRILACAK · ${name}"
+  ui_section_start "$(T "KALDIRILACAK") · ${name}"
   for e in $files; do
     kb=$(lo_size_kb "$e"); (( total += kb ))
     hs=$(ui_human $kb)
     sp=$(ui_cut_left "${e/#$HOME/~}" $(( UEP_W - 20 )))
     pad=$(( UEP_W - 6 - ${#sp} - ${#hs} )); (( pad < 1 )) && pad=1
     ui_section_row "  ${C_TXT}${sp}${C_RESET}$(ui_rep ' ' $pad)${C_DIM}${hs}${C_RESET}"
-    ui_report "[seçildi] $e"
+    ui_report "$(T "[seçildi]") $e"
   done
   ui_section_end
-  print -r -- "  ${C_TXT}${#files} öğe · toplam $(ui_human $total)${C_RESET}"
-  print -rn -- "  ${C_B1}[e]${C_RESET} ${C_TXT}Evet, hepsini Çöp Kutusu'na taşı${C_RESET}   ${C_DIM}[⌫ / başka tuş] iptal${C_RESET}  ▸ "
+  print -r -- "  ${C_TXT}$(TF "%s öğe · toplam %s" ${#files} "$(ui_human $total)")${C_RESET}"
+  print -rn -- "  ${C_B1}$(T "[e]")${C_RESET} ${C_TXT}$(T "Evet, hepsini Çöp Kutusu'na taşı")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] iptal")${C_RESET}  ▸ "
   ui_key
-  if [[ $REPLY == [eE] ]]; then lo_move_list "${files[@]}"
-  else print -r -- "  ${C_DIM}İptal edildi. Hiçbir şey taşınmadı.${C_RESET}"
+  if [[ $REPLY == [eEyY] ]]; then lo_move_list "${files[@]}"
+  else print -r -- "  ${C_DIM}$(T "İptal edildi. Hiçbir şey taşınmadı.")${C_RESET}"
   fi
   UEP_REPORT=""
   ui_pause
@@ -568,13 +568,13 @@ lo_menu() {
   while true; do
     ui_clear; ui_header; print
     ui_section_start "KALINTI TEMİZLEYİCİ"
-    ui_section_row "  ${C_B1}[1]${C_RESET} ${C_B2}▸${C_RESET} ${C_TXT}Uygulama kaldır (kalıntılarıyla birlikte)${C_RESET}"
-    ui_section_row "  ${C_B1}[2]${C_RESET} ${C_B2}▸${C_RESET} ${C_TXT}Silinmiş uygulamaların kalıntılarını bul${C_RESET}"
-    ui_section_row "  ${C_B1}[3]${C_RESET} ${C_B2}▸${C_RESET} ${C_TXT}Son temizliği geri al${C_RESET}"
+    ui_section_row "  ${C_B1}[1]${C_RESET} ${C_B2}▸${C_RESET} ${C_TXT}$(T "Uygulama kaldır (kalıntılarıyla birlikte)")${C_RESET}"
+    ui_section_row "  ${C_B1}[2]${C_RESET} ${C_B2}▸${C_RESET} ${C_TXT}$(T "Silinmiş uygulamaların kalıntılarını bul")${C_RESET}"
+    ui_section_row "  ${C_B1}[3]${C_RESET} ${C_B2}▸${C_RESET} ${C_TXT}$(T "Son temizliği geri al")${C_RESET}"
     ui_section_row ""
-    ui_section_row "  ${C_B1}[0]${C_RESET} ${C_B2}▸${C_RESET} ${C_DIM}Geri  (ya da ⌫)${C_RESET}"
+    ui_section_row "  ${C_B1}[0]${C_RESET} ${C_B2}▸${C_RESET} ${C_DIM}$(T "Geri  (ya da ⌫)")${C_RESET}"
     ui_section_end
-    print -rn -- "  ${C_B1}Seçimin ▸${C_RESET} "
+    print -rn -- "  ${C_B1}$(T "Seçimin ▸")${C_RESET} "
     ui_key; k=$REPLY
     ui_is_back "$k" && return
     case $k in

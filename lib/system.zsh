@@ -40,9 +40,9 @@ sys_run() {
     ui_check info "Pil bilgisi" "OKUNAMADI"
   else
     if [[ -n $SYS_CAP ]]; then
-      if (( SYS_CAP >= 80 )); then ui_check ok "Pil kapasitesi" "%${SYS_CAP}"
-      elif (( SYS_CAP >= 70 )); then ui_check warn "Pil kapasitesi" "%${SYS_CAP}" "%80'in altında: pil değişimi düşünülebilir"
-      else ui_check bad "Pil kapasitesi" "%${SYS_CAP}" "Pil yıpranmış: değişim önerilir"
+      if (( SYS_CAP >= 80 )); then ui_check ok "Pil kapasitesi" "$(TF "%%%s" $SYS_CAP)"
+      elif (( SYS_CAP >= 70 )); then ui_check warn "Pil kapasitesi" "$(TF "%%%s" $SYS_CAP)" "%80'in altında: pil değişimi düşünülebilir"
+      else ui_check bad "Pil kapasitesi" "$(TF "%%%s" $SYS_CAP)" "Pil yıpranmış: değişim önerilir"
       fi
     fi
     if [[ -n $SYS_CYC ]]; then
@@ -56,7 +56,7 @@ sys_run() {
       first=$(head -1 "$SYS_BLOG" 2>/dev/null)
       fields=("${(@ps:\t:)first}")
       if [[ -n ${fields[1]} && ${fields[1]} != $today ]]; then
-        ui_check info "İlk kayıt (${fields[1]})" "%${fields[3]} · ${fields[2]} döngü"
+        ui_check info "$(TF "İlk kayıt (%s)" ${fields[1]})" "$(TF "%%%s · %s döngü" ${fields[3]} ${fields[2]})"
       fi
     fi
   fi
@@ -71,8 +71,8 @@ sys_run() {
   if [[ $total == <-> && $avail == <-> && $total != 0 ]]; then
     pct=$(( avail * 100 / total ))
     state=ok; (( pct < 20 )) && state=warn; (( pct < 10 )) && state=bad
-    if [[ $state == ok ]]; then ui_check ok "Boş alan" "$(ui_human $avail) / $(ui_human $total)  (%${pct})"
-    else ui_check $state "Boş alan" "$(ui_human $avail) / $(ui_human $total)  (%${pct})" "Disk doluyor: büyük klasörlere bak"
+    if [[ $state == ok ]]; then ui_check ok "Boş alan" "$(ui_human $avail) / $(ui_human $total)  ($(TF "%%%s" $pct))"
+    else ui_check $state "Boş alan" "$(ui_human $avail) / $(ui_human $total)  ($(TF "%%%s" $pct))" "Disk doluyor: büyük klasörlere bak"
     fi
   else
     ui_check info "Boş alan" "OKUNAMADI"
@@ -99,7 +99,7 @@ sys_run() {
   out=$(tmutil destinationinfo 2>&1)
   if [[ $out == *"Name"* ]]; then
     latest=$(tmutil latestbackup 2>/dev/null)
-    if [[ -n $latest && $latest != *"Failed"* ]]; then ui_check ok "Time Machine" "son yedek: ${${latest:t}[1,10]}"
+    if [[ -n $latest && $latest != *"Failed"* ]]; then ui_check ok "Time Machine" "$(T "son yedek:") ${${latest:t}[1,10]}"
     else ui_check info "Time Machine" "KURULU · yedek diski bağlı değil"
     fi
   else

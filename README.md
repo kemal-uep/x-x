@@ -55,6 +55,8 @@ uep
 
 Press `⌫` on any screen to go back.
 
+**Languages:** English and Turkish. The first launch asks which one you want. Press `L` in the main menu to switch any time.
+
 <p align="center">
   <img src="assets/menu.png" alt="menu" width="49%">
   <img src="assets/security.png" alt="security check" width="49%">
@@ -72,8 +74,6 @@ Press `⌫` on any screen to go back.
 - macOS (Apple Silicon or Intel)
 - zsh (default on macOS)
 - [ClamAV](https://www.clamav.net/) for virus scans (installed automatically with Homebrew)
-
-> The interface is currently in **Turkish**. English is planned.
 
 ## License
 
@@ -115,6 +115,8 @@ uep
 | 9 | Kalıntı temizleyici | Silinmiş uygulamaların kalıntılarını bulur, Çöp Kutusu'na taşır |
 
 Her ekranda `⌫` ile geri dönülür.
+
+**Dil:** İngilizce ve Türkçe. İlk açılışta hangisini istediğin sorulur. Ana menüde `L` tuşuyla istediğin zaman değiştirebilirsin.
 
 Kayıtlar ve raporlar bilgisayarında kalır: `~/.x-x` (Homebrew) ya da indirdiğin klasör (Git).
 

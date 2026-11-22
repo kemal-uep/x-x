@@ -9,8 +9,8 @@ if [[ -z $UEP_DATA ]]; then
 fi
 [[ ${LC_ALL:-${LC_CTYPE:-$LANG}} == *UTF-8* ]] || export LC_ALL=en_US.UTF-8
 
-for UEP_MOD in ui security startup config system virus update report leftovers; do
-  source "$UEP_HOME/lib/$UEP_MOD.zsh" || { print -r -- "UEP: lib/$UEP_MOD.zsh yüklenemedi"; exit 1; }
+for UEP_MOD in i18n ui security startup config system virus update report leftovers; do
+  source "$UEP_HOME/lib/$UEP_MOD.zsh" || { print -r -- "x/x: cannot load lib/$UEP_MOD.zsh"; exit 1; }
 done
 
 uep_exit() {
@@ -21,6 +21,14 @@ uep_exit() {
 trap uep_exit INT TERM
 
 mkdir -p "$UEP_DATA/state" "$UEP_DATA/reports"
+
+# dil: kayıtlıysa onu kullan, değilse ilk açılışta sor
+i18n_load
+if [[ -z $UEP_LANG ]]; then
+  if [[ -n $UEP_DEFAULT_LANG ]]; then UEP_LANG=$UEP_DEFAULT_LANG; i18n_save
+  else ui_lang_pick
+  fi
+fi
 
 [[ -n $UEP_NOSPLASH ]] || ui_splash
 
@@ -41,6 +49,7 @@ while true; do
     7) up_check ;;
     8) rp_full ;;
     9) lo_menu ;;
+    l|L) ui_lang_toggle ;;
     0|q|Q)
       ui_clear
       print -r -- "  ${C_B2}memento mori${C_RESET}"

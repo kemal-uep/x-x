@@ -69,7 +69,7 @@ sec_run() {
   users=$(dscl . list /Users UniqueID 2>/dev/null | awk '$2 >= 501 {print $1}' | grep -v '^_')
   ucount=$(print -r -- "$users" | grep -c .)
   if (( ucount <= 1 )); then ui_check ok "Kullanıcı hesabı sayısı" "$ucount"
-  else ui_check warn "Kullanıcı hesabı sayısı" "$ucount" "Hesaplar: ${(j:, :)${(f)users}}"
+  else ui_check warn "Kullanıcı hesabı sayısı" "$ucount" "$(T "Hesaplar:") ${(j:, :)${(f)users}}"
   fi
 
   out=$(profiles status -type enrollment 2>/dev/null)

@@ -60,7 +60,7 @@ st_run() {
 
   for g in $ST_GROUPS; do
     dir=${g%%|*}; title=${g#*|}
-    ui_section_start "BAŞLANGIÇ · $title"
+    ui_section_start "$(T "BAŞLANGIÇ") · $(T "$title")"
     count=0
     for l in $ST_CUR; do
       [[ ${l%%|*} == $dir ]] || continue
@@ -78,14 +78,14 @@ st_run() {
 
       signer=$(st_signer "$prog")
       case $signer in
-        MISSING)  note="program dosyası yok: ${prog/#$HOME/~}" ;;
-        UNSIGNED) note="imzasız: ${prog/#$HOME/~}"; [[ $state == ok ]] && { state=warn; value="İMZASIZ"; } ;;
+        MISSING)  note="$(T "program dosyası yok:") ${prog/#$HOME/~}" ;;
+        UNSIGNED) note="$(T "imzasız:") ${prog/#$HOME/~}"; [[ $state == ok ]] && { state=warn; value="İMZASIZ"; } ;;
         "?")      note="" ;;
-        *)        note="imza: ${signer}" ;;
+        *)        note="$(T "imza:") ${signer}" ;;
       esac
       ui_check $state "$label" "$value" "$note"
     done
-    (( count == 0 )) && ui_section_row "  ${C_DIM}(boş)${C_RESET}"
+    (( count == 0 )) && ui_section_row "  ${C_DIM}$(T "(boş)")${C_RESET}"
     ui_section_end
   done
 
@@ -109,23 +109,23 @@ st_check() {
   st_run
   print
   if (( ST_FIRST )); then
-    print -r -- "  ${C_B1}İlk tarama.${C_RESET} ${C_TXT}${#ST_CUR} öğe güvenilir liste olarak kaydedildi.${C_RESET}"
-    print -r -- "  ${C_DIM}Bundan sonra yeni eklenen ya da değişen her şey burada işaretlenecek.${C_RESET}"
+    print -r -- "  ${C_B1}$(T "İlk tarama.")${C_RESET} ${C_TXT}$(TF "%s öğe güvenilir liste olarak kaydedildi." ${#ST_CUR})${C_RESET}"
+    print -r -- "  ${C_DIM}$(T "Bundan sonra yeni eklenen ya da değişen her şey burada işaretlenecek.")${C_RESET}"
   elif (( ST_NEW + ST_CHANGED + ST_REMOVED == 0 )); then
-    print -r -- "  ${C_OK}${C_BOLD}✔ Değişiklik yok.${C_RESET} ${C_TXT}${#ST_CUR} öğenin hepsi tanıdık.${C_RESET}"
+    print -r -- "  ${C_OK}${C_BOLD}$(T "✔ Değişiklik yok.")${C_RESET} ${C_TXT}$(TF "%s öğenin hepsi tanıdık." ${#ST_CUR})${C_RESET}"
   else
-    print -r -- "  ${C_TXT}Sonuç:${C_RESET} ${C_BAD}${ST_NEW} yeni${C_RESET}  ·  ${C_WARN}${ST_CHANGED} değişmiş${C_RESET}  ·  ${C_WARN}${ST_REMOVED} kaldırılmış${C_RESET}"
-    print -r -- "  ${C_DIM}Bunları sen yaptıysan (program kurdun ya da sildin) listeyi güncelle.${C_RESET}"
+    print -r -- "  ${C_TXT}$(T "Sonuç:")${C_RESET} ${C_BAD}$(TF "%s yeni" $ST_NEW)${C_RESET}  ·  ${C_WARN}$(TF "%s değişmiş" $ST_CHANGED)${C_RESET}  ·  ${C_WARN}$(TF "%s kaldırılmış" $ST_REMOVED)${C_RESET}"
+    print -r -- "  ${C_DIM}$(T "Bunları sen yaptıysan (program kurdun ya da sildin) listeyi güncelle.")${C_RESET}"
     print
-    print -rn -- "  ${C_B1}[k]${C_RESET} ${C_TXT}Tanıyorum, listeyi güncelle${C_RESET}   ${C_DIM}[⌫ / başka tuş] geç${C_RESET}  ▸ "
+    print -rn -- "  ${C_B1}$(T "[k]")${C_RESET} ${C_TXT}$(T "Tanıyorum, listeyi güncelle")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] geç")${C_RESET}  ▸ "
     ui_key
-    if [[ $REPLY == [kK] ]]; then
+    if [[ $REPLY == [kKyY] ]]; then
       st_save
-      print -r -- "  ${C_OK}✔ Güvenilir liste güncellendi.${C_RESET}"
+      print -r -- "  ${C_OK}$(T "✔ Güvenilir liste güncellendi.")${C_RESET}"
     fi
   fi
   ui_report ""
-  ui_report "Özet: ${#ST_CUR} öğe, ${ST_NEW} yeni, ${ST_CHANGED} değişmiş, ${ST_REMOVED} kaldırılmış"
+  ui_report "$(TF "Özet: %s öğe, %s yeni, %s değişmiş, %s kaldırılmış" ${#ST_CUR} $ST_NEW $ST_CHANGED $ST_REMOVED)"
   ui_report_done
   ui_pause
 }

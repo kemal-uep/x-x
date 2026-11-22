@@ -45,9 +45,9 @@ cf_susp() { # stdin: satırlar, $1: yol -> şüpheli satırlar
 
 cf_susp_note() {
   case $1 in
-    */etc/hosts) print -rn -- "standart olmayan yönlendirme" ;;
-    */.ssh/authorized_keys) print -rn -- "bu Mac'e uzaktan girebilen SSH anahtarı" ;;
-    *) print -rn -- "şüpheli satır" ;;
+    */etc/hosts) T "standart olmayan yönlendirme" ;;
+    */.ssh/authorized_keys) T "bu Mac'e uzaktan girebilen SSH anahtarı" ;;
+    *) T "şüpheli satır" ;;
   esac
 }
 
@@ -85,7 +85,7 @@ cf_run() {
     if [[ ! -f $b ]]; then
       susp=("${(@f)$(print -r -- "$cur" | cf_susp "$p")}"); susp=(${susp:#})
       if (( CF_FIRST )); then
-        if (( ${#susp} )); then ui_check warn "$label" "KAYDEDİLDİ · ${#susp} UYARI"
+        if (( ${#susp} )); then ui_check warn "$label" "$(TF "KAYDEDİLDİ · %s UYARI" ${#susp})"
         else ui_check ok "$label" "KAYDEDİLDİ"
         fi
       else
@@ -111,18 +111,18 @@ cf_run() {
     fi
     n=0
     for l in $added; do
-      (( n += 1 )); (( n > 6 )) && { ui_detail "… ve $(( ${#added} - 6 )) satır daha eklendi"; break; }
+      (( n += 1 )); (( n > 6 )) && { ui_detail "$(TF "… ve %s satır daha eklendi" $(( ${#added} - 6 )))"; break; }
       if (( ${susp[(Ie)$l]} )); then ui_detail "+ ${l## #}" $C_BAD
       else ui_detail "+ ${l## #}" $C_WARN
       fi
     done
     n=0
     for l in $removed; do
-      (( n += 1 )); (( n > 4 )) && { ui_detail "… ve $(( ${#removed} - 4 )) satır daha silindi"; break; }
+      (( n += 1 )); (( n > 4 )) && { ui_detail "$(TF "… ve %s satır daha silindi" $(( ${#removed} - 4 )))"; break; }
       ui_detail "− ${l## #}"
     done
   done
-  (( shown == 0 )) && ui_section_row "  ${C_DIM}(izlenecek dosya yok)${C_RESET}"
+  (( shown == 0 )) && ui_section_row "  ${C_DIM}$(T "(izlenecek dosya yok)")${C_RESET}"
   ui_section_end
 
   (( CF_FIRST )) && cf_save
@@ -134,19 +134,19 @@ cf_check() {
   cf_run
   print
   if (( CF_FIRST )); then
-    print -r -- "  ${C_B1}İlk tarama.${C_RESET} ${C_TXT}Dosyaların şimdiki hali güvenilir olarak kaydedildi.${C_RESET}"
-    (( UEP_WARN )) && print -r -- "  ${C_WARN}Yukarıdaki uyarılı satırları tanımıyorsan bana sor.${C_RESET}"
+    print -r -- "  ${C_B1}$(T "İlk tarama.")${C_RESET} ${C_TXT}$(T "Dosyaların şimdiki hali güvenilir olarak kaydedildi.")${C_RESET}"
+    (( UEP_WARN )) && print -r -- "  ${C_WARN}$(T "Yukarıdaki uyarılı satırları tanımıyorsan araştır.")${C_RESET}"
   elif (( CF_PENDING == 0 )); then
-    print -r -- "  ${C_OK}${C_BOLD}✔ Değişiklik yok.${C_RESET} ${C_TXT}Ayar dosyalarına kimse dokunmamış.${C_RESET}"
+    print -r -- "  ${C_OK}${C_BOLD}$(T "✔ Değişiklik yok.")${C_RESET} ${C_TXT}$(T "Ayar dosyalarına kimse dokunmamış.")${C_RESET}"
   else
-    print -r -- "  ${C_TXT}${CF_PENDING} dosyada değişiklik var.${C_RESET} ${C_DIM}(+ eklenen satır, − silinen satır)${C_RESET}"
-    print -r -- "  ${C_DIM}Bunları sen yaptıysan ya da kurduğun bir program yaptıysa kabul et.${C_RESET}"
+    print -r -- "  ${C_TXT}$(TF "%s dosyada değişiklik var." $CF_PENDING)${C_RESET} ${C_DIM}$(T "(+ eklenen satır, − silinen satır)")${C_RESET}"
+    print -r -- "  ${C_DIM}$(T "Bunları sen yaptıysan ya da kurduğun bir program yaptıysa kabul et.")${C_RESET}"
     print
-    print -rn -- "  ${C_B1}[k]${C_RESET} ${C_TXT}Tanıyorum, yeni hali kaydet${C_RESET}   ${C_DIM}[⌫ / başka tuş] geç${C_RESET}  ▸ "
+    print -rn -- "  ${C_B1}$(T "[k]")${C_RESET} ${C_TXT}$(T "Tanıyorum, yeni hali kaydet")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] geç")${C_RESET}  ▸ "
     ui_key
-    if [[ $REPLY == [kK] ]]; then
+    if [[ $REPLY == [kKyY] ]]; then
       cf_save
-      print -r -- "  ${C_OK}✔ Kaydedildi.${C_RESET}"
+      print -r -- "  ${C_OK}$(T "✔ Kaydedildi.")${C_RESET}"
     fi
   fi
   ui_report_done

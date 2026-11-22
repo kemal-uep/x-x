@@ -38,10 +38,10 @@ vr_update_db() { # virüs listesini güncelle -> VR_DB_MSG
 vr_last_line() { # son tarama özeti (düz metin)
   local l
   local -a f
-  [[ -r $VR_LAST ]] || { print -rn -- "henüz yapılmadı"; return 1; }
+  [[ -r $VR_LAST ]] || { T "henüz yapılmadı"; return 1; }
   l=$(<"$VR_LAST"); f=("${(@s:|:)l}")
-  [[ ${f[1]} == <-> ]] || { print -rn -- "henüz yapılmadı"; return 1; }
-  print -rn -- "$(ui_days_ago ${f[1]}) · ${f[2]} · ${f[3]} dosya · ${f[4]} virüs"
+  [[ ${f[1]} == <-> ]] || { T "henüz yapılmadı"; return 1; }
+  print -rn -- "$(ui_days_ago ${f[1]}) · $(T "${f[2]}") · $(TF "%s dosya · %s virüs" ${f[3]} ${f[4]})"
 }
 
 # dosyayı karantinaya taşı: vr_quarantine <yol> <sebep>
@@ -68,8 +68,8 @@ vr_scan() { # vr_scan hizli|tam
   cs=$(vr_bin clamscan)
   if [[ -z $cs ]]; then
     ui_clear; ui_header; print
-    print -r -- "  ${C_WARN}! ClamAV kurulu değil.${C_RESET}"
-    print -r -- "  ${C_DIM}Terminal'de şunu çalıştır, sonra tekrar dene:${C_RESET}  ${C_TXT}brew install clamav${C_RESET}"
+    print -r -- "  ${C_WARN}$(T "! ClamAV kurulu değil.")${C_RESET}"
+    print -r -- "  ${C_DIM}$(T "Terminal'de şunu çalıştır, sonra tekrar dene:")${C_RESET}  ${C_TXT}brew install clamav${C_RESET}"
     ui_pause; return
   fi
 
@@ -87,8 +87,8 @@ vr_scan() { # vr_scan hizli|tam
   print
   ui_status "virüs listesi güncelleniyor..."
   vr_update_db
-  ui_status "virüs listesi: ${VR_DB_MSG}"
-  ui_status "${mname} tarama başlıyor · ${#exist} konum"
+  ui_status "$(T "virüs listesi:") $(T "$VR_DB_MSG")"
+  ui_status "$(TF "%s tarama başlıyor · %s konum" "$(T "$mname")" ${#exist})"
   print
 
   mkdir -p "$UEP_DATA/reports"
@@ -102,13 +102,15 @@ vr_scan() { # vr_scan hizli|tam
   trap 'cancelled=1; kill $pid 2>/dev/null' INT
 
   spin=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
+  local w_scan="taranıyor" w_found="bulunan:" w_cancel="[Ctrl+C] iptal"
+  i18n_var w_scan; i18n_var w_found; i18n_var w_cancel
   t0=$SECONDS
   print -rn -- $'\e[?25l'
   while kill -0 $pid 2>/dev/null; do
     (( i += 1 ))
     el=$(( SECONDS - t0 ))
     if (( i % 10 == 1 )); then nfound=$(grep -c ' FOUND$' "$log" 2>/dev/null); fi
-    print -rn -- $'\r'"  ${C_B1}${spin[$(( i % 10 + 1 ))]}${C_RESET} ${C_TXT}taranıyor${C_RESET} ${C_DIM}·${C_RESET} ${C_TXT}$(printf '%02d:%02d' $(( el / 60 )) $(( el % 60 )))${C_RESET} ${C_DIM}· bulunan:${C_RESET} ${C_TXT}${nfound:-0}${C_RESET}   ${C_DIM}[Ctrl+C] iptal${C_RESET}"$'\e[K'
+    print -rn -- $'\r'"  ${C_B1}${spin[$(( i % 10 + 1 ))]}${C_RESET} ${C_TXT}${w_scan}${C_RESET} ${C_DIM}·${C_RESET} ${C_TXT}$(printf '%02d:%02d' $(( el / 60 )) $(( el % 60 )))${C_RESET} ${C_DIM}· ${w_found}${C_RESET} ${C_TXT}${nfound:-0}${C_RESET}   ${C_DIM}${w_cancel}${C_RESET}"$'\e[K'
     ui_cs 10
   done
   wait $pid 2>/dev/null
@@ -120,14 +122,14 @@ vr_scan() { # vr_scan hizli|tam
   hits=("${(@f)$(grep ' FOUND$' "$log")}"); hits=(${hits:#})
 
   if [[ -z $files ]] && (( ! cancelled )) && (( ${#hits} == 0 )); then
-    print -r -- "  ${C_BAD}✘ Tarama çalışmadı.${C_RESET}"
+    print -r -- "  ${C_BAD}$(T "✘ Tarama çalışmadı.")${C_RESET}"
     tail -3 "$log" | while IFS= read -r l; do print -r -- "  ${C_DIM}$(ui_cut "$l" 74)${C_RESET}"; done
     rm -f -- "$log"; UEP_REPORT=""
     ui_pause; return
   fi
 
   ui_counts_reset
-  ui_section_start "VİRÜS · ${title} · SONUÇ"
+  ui_section_start "$(T "VİRÜS") · $(T "$title") · $(T "SONUÇ")"
   (( cancelled )) && ui_check warn "Tarama" "YARIDA KESİLDİ"
   [[ -n $files ]] && ui_check info "Taranan dosya" "$files"
   ui_check info "Süre" "$(printf '%02d:%02d' $(( el / 60 )) $(( el % 60 )))"
@@ -149,25 +151,25 @@ vr_scan() { # vr_scan hizli|tam
 
   if (( ${#hits} )); then
     print
-    print -r -- "  ${C_DIM}Karantina dosyayı silmez: güvenli bir klasöre taşır, istersen geri alırsın.${C_RESET}"
-    print -rn -- "  ${C_B1}[k]${C_RESET} ${C_TXT}Hepsini karantinaya al${C_RESET}   ${C_DIM}[⌫ / başka tuş] dokunma${C_RESET}  ▸ "
+    print -r -- "  ${C_DIM}$(T "Karantina dosyayı silmez: güvenli bir klasöre taşır, istersen geri alırsın.")${C_RESET}"
+    print -rn -- "  ${C_B1}$(T "[k]")${C_RESET} ${C_TXT}$(T "Hepsini karantinaya al")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] dokunma")${C_RESET}  ▸ "
     ui_key
-    if [[ $REPLY == [kK] ]]; then
+    if [[ $REPLY == [kKyY] ]]; then
       ok=0; fail=0
       for l in $hits; do
         p=${l%: *}; vname=${${l##*: }% FOUND}
-        if [[ -e $p ]] && vr_quarantine "$p" "$vname"; then (( ok += 1 )); ui_report "[karantina] $p"
-        else (( fail += 1 )); ui_report "[taşınamadı] $p"
+        if [[ -e $p ]] && vr_quarantine "$p" "$vname"; then (( ok += 1 )); ui_report "$(T "[karantina]") $p"
+        else (( fail += 1 )); ui_report "$(T "[taşınamadı]") $p"
         fi
       done
-      print -r -- "  ${C_OK}${C_BOLD}✔ ${ok} dosya karantinaya alındı.${C_RESET} ${C_DIM}Ana menü > [6] Karantina${C_RESET}"
-      (( fail )) && print -r -- "  ${C_WARN}${fail} dosya taşınamadı.${C_RESET}"
+      print -r -- "  ${C_OK}${C_BOLD}$(TF "✔ %s dosya karantinaya alındı." $ok)${C_RESET} ${C_DIM}$(T "Ana menü > [6] Karantina")${C_RESET}"
+      (( fail )) && print -r -- "  ${C_WARN}$(TF "%s dosya taşınamadı." $fail)${C_RESET}"
     else
-      print -r -- "  ${C_DIM}Dosyalara dokunulmadı.${C_RESET}"
+      print -r -- "  ${C_DIM}$(T "Dosyalara dokunulmadı.")${C_RESET}"
     fi
   elif (( ! cancelled )); then
     print
-    print -r -- "  ${C_OK}${C_BOLD}✔ Temiz.${C_RESET} ${C_TXT}Virüs bulunamadı.${C_RESET}"
+    print -r -- "  ${C_OK}${C_BOLD}$(T "✔ Temiz.")${C_RESET} ${C_TXT}$(T "Virüs bulunamadı.")${C_RESET}"
   fi
   rm -f -- "$log"
   ui_report_done
@@ -179,14 +181,14 @@ vr_menu() {
   while true; do
     ui_clear; ui_header; print
     ui_section_start "VİRÜS TARAMASI"
-    ui_section_row "  ${C_B1}[1]${C_RESET} ${C_B2}▸${C_RESET} ${C_TXT}Hızlı tarama${C_RESET}  ${C_DIM}İndirilenler · Masaüstü · açılış öğeleri${C_RESET}"
-    ui_section_row "  ${C_B1}[2]${C_RESET} ${C_B2}▸${C_RESET} ${C_TXT}Tam tarama${C_RESET}    ${C_DIM}tüm dosyaların + Uygulamalar · 1-2 saat sürer${C_RESET}"
+    ui_section_row "  ${C_B1}[1]${C_RESET} ${C_B2}▸${C_RESET} ${C_TXT}$(T "Hızlı tarama")${C_RESET}  ${C_DIM}$(T "İndirilenler · Masaüstü · açılış öğeleri")${C_RESET}"
+    ui_section_row "  ${C_B1}[2]${C_RESET} ${C_B2}▸${C_RESET} ${C_TXT}$(T "Tam tarama")${C_RESET}    ${C_DIM}$(T "tüm dosyaların + Uygulamalar · 1-2 saat sürer")${C_RESET}"
     ui_section_row ""
-    ui_section_row "  ${C_DIM}son tarama: $(vr_last_line)${C_RESET}"
+    ui_section_row "  ${C_DIM}$(T "son tarama:") $(vr_last_line)${C_RESET}"
     ui_section_row ""
-    ui_section_row "  ${C_B1}[0]${C_RESET} ${C_B2}▸${C_RESET} ${C_DIM}Geri  (ya da ⌫)${C_RESET}"
+    ui_section_row "  ${C_B1}[0]${C_RESET} ${C_B2}▸${C_RESET} ${C_DIM}$(T "Geri  (ya da ⌫)")${C_RESET}"
     ui_section_end
-    print -rn -- "  ${C_B1}Seçimin ▸${C_RESET} "
+    print -rn -- "  ${C_B1}$(T "Seçimin ▸")${C_RESET} "
     ui_key; k=$REPLY
     ui_is_back "$k" && return
     case $k in
@@ -220,19 +222,19 @@ qr_drop() { # kaydı listeden çıkar: qr_drop <id>
 qr_restore() { # <id> <asıl yol> <karantina yolu>
   local id=$1 src=$2 dest=$3
   if [[ -e $src ]]; then
-    print -r -- "  ${C_WARN}! Eski yerinde aynı isimde bir dosya var. Geri yüklenmedi.${C_RESET}"; return 1
+    print -r -- "  ${C_WARN}$(T "! Eski yerinde aynı isimde bir dosya var. Geri yüklenmedi.")${C_RESET}"; return 1
   fi
   mkdir -p "${src:h}" 2>/dev/null
   if [[ -w ${src:h} ]]; then mv -- "$dest" "$src" 2>/dev/null
   else sudo mv -- "$dest" "$src" 2>/dev/null
-  fi || { print -r -- "  ${C_BAD}✘ Geri yüklenemedi.${C_RESET}"; return 1; }
+  fi || { print -r -- "  ${C_BAD}$(T "✘ Geri yüklenemedi.")${C_RESET}"; return 1; }
   qr_drop "$id"
-  print -r -- "  ${C_OK}✔ Geri yüklendi:${C_RESET} ${C_DIM}$(ui_cut_left "${src/#$HOME/~}" 56)${C_RESET}"
+  print -r -- "  ${C_OK}$(T "✔ Geri yüklendi:")${C_RESET} ${C_DIM}$(ui_cut_left "${src/#$HOME/~}" 56)${C_RESET}"
 }
 
 qr_delete() { # <id> <karantina yolu>  — kalıcı siler
   local id=$1 dest=$2
-  [[ $dest == "$VR_QDIR"/?* ]] || { print -r -- "  ${C_BAD}✘ Güvenlik: yol karantina klasöründe değil. Silinmedi.${C_RESET}"; return 1; }
+  [[ $dest == "$VR_QDIR"/?* ]] || { print -r -- "  ${C_BAD}$(T "✘ Güvenlik: yol karantina klasöründe değil. Silinmedi.")${C_RESET}"; return 1; }
   rm -rf -- "$dest" || return 1
   qr_drop "$id"
 }
@@ -245,8 +247,8 @@ qr_menu() {
     ui_clear; ui_header
     if (( ${#QR_LIST} == 0 )); then
       print
-      print -r -- "  ${C_OK}${C_BOLD}✔ Karantina boş.${C_RESET}"
-      print -r -- "  ${C_DIM}Virüs taramasında bulunan dosyalar buraya gelir.${C_RESET}"
+      print -r -- "  ${C_OK}${C_BOLD}$(T "✔ Karantina boş.")${C_RESET}"
+      print -r -- "  ${C_DIM}$(T "Virüs taramasında bulunan dosyalar buraya gelir.")${C_RESET}"
       ui_pause; return
     fi
     ui_section_start "KARANTİNA"
@@ -259,21 +261,21 @@ qr_menu() {
       ui_section_row "      ${C_DIM}$(ui_cut_left "${f[4]/#$HOME/~}" 64)${C_RESET}"
     done
     ui_section_end
-    print -r -- "  ${C_DIM}${#QR_LIST} dosya · toplam $(ui_human $total)${C_RESET}"
+    print -r -- "  ${C_DIM}$(TF "%s dosya · toplam %s" ${#QR_LIST} "$(ui_human $total)")${C_RESET}"
     print
-    print -r -- "  ${C_DIM}Numara yaz · [t] hepsini kalıcı sil · [⌫] geri${C_RESET}"
-    print -rn -- "  ${C_B1}Seçimin ▸${C_RESET} "
+    print -r -- "  ${C_DIM}$(T "Numara yaz · [t] hepsini kalıcı sil · [⌫] geri")${C_RESET}"
+    print -rn -- "  ${C_B1}$(T "Seçimin ▸")${C_RESET} "
     ui_readline sel || return
     [[ -z $sel ]] && return
 
-    if [[ $sel == [tT] ]]; then
-      print -r -- "  ${C_BAD}Kalıcı silme geri alınamaz.${C_RESET} ${C_TXT}Onaylamak için SIL yaz, vazgeçmek için ⌫:${C_RESET}"
+    if [[ $sel == [tTxX] ]]; then
+      print -r -- "  ${C_BAD}$(T "Kalıcı silme geri alınamaz.")${C_RESET} ${C_TXT}$(T "Onaylamak için SIL yaz, vazgeçmek için ⌫:")${C_RESET}"
       print -rn -- "  ${C_B1}▸${C_RESET} "
       ui_readline word || continue
-      if [[ ${word:u} == SIL || ${word:u} == SİL ]]; then
+      if [[ ${word:u} == SIL || ${word:u} == SİL || ${word:u} == DELETE ]]; then
         n=0
         for l in $QR_LIST; do f=("${(@ps:\t:)l}"); qr_delete "${f[1]}" "${f[5]}" && (( n += 1 )); done
-        print -r -- "  ${C_OK}✔ ${n} dosya kalıcı olarak silindi.${C_RESET}"
+        print -r -- "  ${C_OK}$(TF "✔ %s dosya kalıcı olarak silindi." $n)${C_RESET}"
         ui_pause
       fi
       continue
@@ -283,17 +285,17 @@ qr_menu() {
     f=("${(@ps:\t:)QR_LIST[$sel]}")
     id=${f[1]}; src=${f[4]}; dest=${f[5]}
     print
-    print -r -- "  ${C_TXT}${src:t}${C_RESET}  ${C_DIM}· sebep: ${f[3]}${C_RESET}"
-    print -rn -- "  ${C_B1}[g]${C_RESET} ${C_TXT}Geri yükle${C_RESET}   ${C_B1}[s]${C_RESET} ${C_TXT}Kalıcı sil${C_RESET}   ${C_DIM}[⌫ / başka tuş] vazgeç${C_RESET}  ▸ "
+    print -r -- "  ${C_TXT}${src:t}${C_RESET}  ${C_DIM}· $(T "sebep:") ${f[3]}${C_RESET}"
+    print -rn -- "  ${C_B1}$(T "[g]")${C_RESET} ${C_TXT}$(T "Geri yükle")${C_RESET}   ${C_B1}$(T "[s]")${C_RESET} ${C_TXT}$(T "Kalıcı sil")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] vazgeç")${C_RESET}  ▸ "
     ui_key
     case $REPLY in
-      g|G) qr_restore "$id" "$src" "$dest"; ui_pause ;;
-      s|S)
-        print -r -- "  ${C_BAD}Kalıcı silme geri alınamaz.${C_RESET} ${C_TXT}Onaylamak için SIL yaz, vazgeçmek için ⌫:${C_RESET}"
+      g|G|r|R) qr_restore "$id" "$src" "$dest"; ui_pause ;;
+      s|S|d|D)
+        print -r -- "  ${C_BAD}$(T "Kalıcı silme geri alınamaz.")${C_RESET} ${C_TXT}$(T "Onaylamak için SIL yaz, vazgeçmek için ⌫:")${C_RESET}"
         print -rn -- "  ${C_B1}▸${C_RESET} "
         ui_readline word || continue
-        if [[ ${word:u} == SIL || ${word:u} == SİL ]]; then
-          qr_delete "$id" "$dest" && print -r -- "  ${C_OK}✔ Kalıcı olarak silindi.${C_RESET}"
+        if [[ ${word:u} == SIL || ${word:u} == SİL || ${word:u} == DELETE ]]; then
+          qr_delete "$id" "$dest" && print -r -- "  ${C_OK}$(T "✔ Kalıcı olarak silindi.")${C_RESET}"
           ui_pause
         fi ;;
     esac
