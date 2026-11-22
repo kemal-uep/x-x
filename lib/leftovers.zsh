@@ -1,8 +1,8 @@
-# UEP — 9. Kalıntı temizleyici
+# x/x — 9. Kalıntı temizleyici
 # Kurallar:
 #  - Sadece SİLİNMİŞ uygulamaların dosyalarını bulur. Yüklü bir uygulamanın dosyasına dokunmaz.
 #  - Kanıt olmadan hiçbir şeyi kalıntı saymaz.
-#  - Apple, Dropbox, Google Drive, UEP ve sistem klasörlerine dokunmaz.
+#  - Apple, Dropbox, Google Drive, x/x ve sistem klasörlerine dokunmaz.
 #  - Hiçbir şeyi kalıcı silmez: her şey Çöp Kutusu'na taşınır, geri alınabilir.
 #  - Taşımadan önce liste gösterir ve onay ister.
 
@@ -273,7 +273,7 @@ lo_find_orphans() {
       fi
       (( is_sys )) && continue                           # sistem klasörlerinde başka hiçbir şeye dokunma
 
-      # B) UEP'in yüklüyken görüp sonra silindiğini bildiği uygulama -> kesin
+      # B) x/x'in yüklüyken görüp sonra silindiğini bildiği uygulama -> kesin
       if rm_app=$(lo_removed_match "$n" "$nl"); then
         found+=("kesin|$rm_app|$e"); continue
       fi

@@ -1,4 +1,4 @@
-# UEP — 5. Virüs taraması  ve  6. Karantina
+# x/x — 5. Virüs taraması  ve  6. Karantina
 # Tarama hiçbir dosyayı silmez. Virüslü dosyalar ancak sen onaylarsan karantinaya taşınır.
 # Karantinadaki dosya geri yüklenebilir. Kalıcı silme ayrı bir onay ister.
 

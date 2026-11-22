@@ -1,6 +1,6 @@
 #!/bin/zsh
-# UEP
-# Çalıştır: uep
+# x/x
+# Çalıştır: uep  (komut adı uep olarak kalır)
 
 UEP_HOME="${0:A:h}"
 [[ ${LC_ALL:-${LC_CTYPE:-$LANG}} == *UTF-8* ]] || export LC_ALL=en_US.UTF-8

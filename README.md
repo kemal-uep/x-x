@@ -1,6 +1,8 @@
-# UEP
+# x/x
 
 Terminalde çalışan, macOS için bakım ve güvenlik aracı.
+
+Komut adı `uep` olarak kalır.
 
 ## Çalıştır
 

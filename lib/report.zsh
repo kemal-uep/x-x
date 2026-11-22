@@ -1,4 +1,4 @@
-# UEP — 8. Tam rapor
+# x/x — 8. Tam rapor
 # Güvenlik, başlangıç, ayar dosyaları ve sistem kontrollerini art arda çalıştırır.
 # Sadece okur. Hiçbir soruyu kendisi onaylamaz, hiçbir listeyi kendisi güncellemez.
 

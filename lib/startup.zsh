@@ -1,4 +1,4 @@
-# UEP — 2. Başlangıç takibi
+# x/x — 2. Başlangıç takibi
 # Mac açılınca kendiliğinden çalışan öğeleri listeler, öncekiyle karşılaştırır.
 # Sadece okur. Hiçbir öğeyi silmez veya durdurmaz.
 

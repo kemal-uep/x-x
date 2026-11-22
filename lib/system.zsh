@@ -1,4 +1,4 @@
-# UEP — 4. Sistem raporu: pil, disk, yedek
+# x/x — 4. Sistem raporu: pil, disk, yedek
 # Sadece okur. Hiçbir şeyi silmez.
 
 SYS_BLOG="$UEP_HOME/state/battery_log.tsv"

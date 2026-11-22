@@ -1,4 +1,4 @@
-# UEP — 1. Güvenlik kontrolü
+# x/x — 1. Güvenlik kontrolü
 # Sadece okur. Hiçbir ayarı değiştirmez.
 
 sec_listening_ports() { # dinlemedeki TCP portları (ör: 22, 5900)

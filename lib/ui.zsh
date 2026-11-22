@@ -1,4 +1,4 @@
-# UEP — arayüz: renkler, kutular, açılış animasyonu, menü
+# x/x — arayüz: renkler, kutular, açılış animasyonu, menü
 
 setopt extended_glob
 typeset -F SECONDS
@@ -261,7 +261,7 @@ ui_splash() {
     for line in $logo; do print -r -- "    ${C_TXT}${line}${C_RESET}"; done
   fi
   print
-  ui_type "    ${C_B3}>${C_RESET} ${C_DIM}uep // init${C_RESET}"
+  ui_type "    ${C_B3}>${C_RESET} ${C_DIM}x/x // init${C_RESET}"
   ui_type "    ${C_B3}>${C_RESET} ${C_DIM}host ....... ${C_RESET}${C_TXT}${host}${C_RESET}"
   ui_type "    ${C_B3}>${C_RESET} ${C_DIM}time ....... ${C_RESET}${C_B1}$(date '+%d.%m.%Y // %H:%M:%S')${C_RESET}"
   ui_type "    ${C_B3}>${C_RESET} ${C_DIM}status ..... ${C_RESET}${C_B1}${C_BOLD}ONLINE${C_RESET}"
@@ -292,7 +292,7 @@ ui_header() {
   logo=("${(@f)$(<"$UEP_HOME/art/xx_small.txt")}")
   info=(
     ""
-    "${C_BOLD}${C_B1}U E P${C_RESET}"
+    "${C_BOLD}${C_B1}x / x${C_RESET}"
     "${C_DIM}// ${C_RESET}${C_B1}${date}${C_RESET}"
     ""
     "${C_TXT}${name}${C_RESET}"

@@ -1,4 +1,4 @@
-# UEP — 7. Güncelle
+# x/x — 7. Güncelle
 # Önce neyin eski olduğunu gösterir. Sen onaylamadan hiçbir şeyi güncellemez.
 # macOS güncellemesini kendisi kurmaz, sadece haber verir.
 

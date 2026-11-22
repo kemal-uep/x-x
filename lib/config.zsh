@@ -1,4 +1,4 @@
-# UEP — 3. Ayar dosyası bekçisi
+# x/x — 3. Ayar dosyası bekçisi
 # Terminal ve sistem ayar dosyalarını izler. Değişen satırları gösterir.
 # Sadece okur. Hiçbir dosyayı değiştirmez.
 
