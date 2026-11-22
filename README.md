@@ -22,6 +22,8 @@
 **Homebrew (recommended)**
 
 ```sh
+brew tap kemal-uep/tap
+brew trust kemal-uep/tap
 brew install kemal-uep/tap/uep
 ```
 
@@ -91,6 +93,8 @@ macOS için terminalde çalışan güvenlik ve bakım aracı. Her şey bilgisaya
 ### Kurulum
 
 ```sh
+brew tap kemal-uep/tap
+brew trust kemal-uep/tap
 brew install kemal-uep/tap/uep
 ```
 
