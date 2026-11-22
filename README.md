@@ -1,16 +1,106 @@
-# x/x
+<p align="center">
+  <img src="assets/demo.gif" alt="x/x demo" width="620">
+</p>
 
-Terminalde çalışan, macOS için bakım ve güvenlik aracı.
+<h1 align="center">x/x</h1>
 
-Komut adı `uep` olarak kalır.
+<p align="center">
+  A terminal security &amp; maintenance toolkit for macOS.<br>
+  Everything runs locally. Nothing is deleted without asking you.
+</p>
 
-## Çalıştır
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-b22222" alt="MIT"></a>
+  <img src="https://img.shields.io/badge/platform-macOS-8b0000" alt="macOS">
+  <img src="https://img.shields.io/badge/shell-zsh-8b0000" alt="zsh">
+</p>
 
+---
+
+## Install
+
+**Homebrew (recommended)**
+
+```sh
+brew install kemal-uep/tap/uep
 ```
+
+**Git**
+
+```sh
+git clone https://github.com/kemal-uep/x-x.git ~/uep
+ln -sf ~/uep/uep /opt/homebrew/bin/uep
+brew install clamav        # only needed for virus scans
+```
+
+Then run:
+
+```sh
 uep
 ```
 
-## Menü
+## What it does
+
+| # | Module | What it does |
+|---|--------|--------------|
+| 1 | Security check | FileVault, firewall, Gatekeeper, SIP, auto updates, login settings, remote access ports, apps listening on the network |
+| 2 | Startup watch | Tracks launch agents, daemons and cron jobs. Shows what is new, changed or removed since last time |
+| 3 | Config file guard | Watches `.zprofile`, `.zshrc`, `/etc/hosts`, SSH keys, `.npmrc`, pip config and more. Flags suspicious lines like `curl … \| sh` |
+| 4 | System report | Battery health, disk space, biggest folders, Trash, Time Machine |
+| 5 | Virus scan | Quick or full scan with ClamAV. The virus database updates automatically |
+| 6 | Quarantine | Infected files are moved, not deleted. Restore or delete them later |
+| 7 | Update | Homebrew packages, virus database, macOS update check |
+| 8 | Full report | Runs 1–4 in one go and saves a report |
+| 9 | Leftover cleaner | Finds files left behind by apps you **already uninstalled**. Never touches installed apps. Moves to Trash, with undo |
+
+Press `⌫` on any screen to go back.
+
+<p align="center">
+  <img src="assets/menu.png" alt="menu" width="49%">
+  <img src="assets/security.png" alt="security check" width="49%">
+</p>
+
+## Safety
+
+- **Nothing is deleted without your confirmation.** Infected files go to quarantine, leftovers go to the Trash, and both can be undone.
+- **The leftover cleaner is evidence-based.** A file is only offered when the app it belongs to is gone. Installed apps, Apple files and cloud folders (iCloud, Dropbox, Google Drive) are never touched.
+- **No telemetry.** The only network traffic is Homebrew, the ClamAV database update and Apple's own update check.
+- Logs and reports stay on your Mac: `~/.x-x` (Homebrew) or the clone folder (Git).
+
+## Requirements
+
+- macOS (Apple Silicon or Intel)
+- zsh (default on macOS)
+- [ClamAV](https://www.clamav.net/) for virus scans (installed automatically with Homebrew)
+
+> The interface is currently in **Turkish**. English is planned.
+
+## License
+
+[MIT](LICENSE)
+
+---
+
+<details>
+<summary><b>Türkçe</b></summary>
+
+## x/x
+
+macOS için terminalde çalışan güvenlik ve bakım aracı. Her şey bilgisayarında çalışır. Sana sormadan hiçbir şeyi silmez.
+
+### Kurulum
+
+```sh
+brew install kemal-uep/tap/uep
+```
+
+Çalıştır:
+
+```sh
+uep
+```
+
+### Menü
 
 | # | Bölüm | Ne yapar |
 |---|-------|----------|
@@ -24,17 +114,10 @@ uep
 | 8 | Tam rapor | 1-4'ü art arda çalıştırır |
 | 9 | Kalıntı temizleyici | Silinmiş uygulamaların kalıntılarını bulur, Çöp Kutusu'na taşır |
 
-## Kurulum (yeni bir Mac'te)
+Her ekranda `⌫` ile geri dönülür.
 
-```
-git clone https://github.com/kemal-uep/x-x.git ~/uep
-chmod +x ~/uep/uep
-ln -sf ~/uep/uep /opt/homebrew/bin/uep
-brew install clamav            # sadece virüs taraması için
-```
+Kayıtlar ve raporlar bilgisayarında kalır: `~/.x-x` (Homebrew) ya da indirdiğin klasör (Git).
 
-`state/`, `reports/` ve `quarantine/` her Mac'te kendiliğinden oluşur, depoya girmez.
+Lisans: MIT. Dileyen kullanabilir, değiştirebilir, paylaşabilir.
 
-## Lisans
-
-MIT. Dileyen kullanabilir, değiştirebilir, paylaşabilir. Detay: `LICENSE`.
+</details>

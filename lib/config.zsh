@@ -9,7 +9,7 @@ CF_FILES=(
   "$HOME/.gitconfig" "$HOME/.npmrc" "$HOME/.pip/pip.conf" "$HOME/.config/pip/pip.conf"
   "$UEP_ROOT/etc/hosts" "$UEP_ROOT/etc/paths" "$UEP_ROOT/etc/paths.d"
 )
-CF_BASE="$UEP_HOME/state/config"
+CF_BASE="$UEP_DATA/state/config"
 CF_SUSP='(curl|wget)[^#|]*\|[[:space:]]*(ba|z)?sh|base64[[:space:]]+-|http://|[Pp][Rr][Oo][Xx][Yy]=|mirrors?\.|osascript|/dev/tcp/|alias[[:space:]]+sudo|LD_PRELOAD|DYLD_INSERT_LIBRARIES'
 CF_FIRST=0; CF_PENDING=0
 

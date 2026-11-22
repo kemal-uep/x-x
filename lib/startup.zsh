@@ -8,7 +8,7 @@ ST_GROUPS=(
   "$UEP_ROOT/Library/LaunchDaemons|SİSTEM SERVİSLERİ (DAEMON)"
   "cron|ZAMANLANMIŞ GÖREVLER (CRON)"
 )
-ST_BASE="$UEP_HOME/state/startup_baseline.txt"
+ST_BASE="$UEP_DATA/state/startup_baseline.txt"
 typeset -ga ST_CUR
 ST_FIRST=0; ST_NEW=0; ST_CHANGED=0; ST_REMOVED=0
 
@@ -43,14 +43,14 @@ st_signer() { # imzalayan şirket / UNSIGNED / MISSING
   print -r -- "${a:-UNSIGNED}"
 }
 
-st_save() { mkdir -p "$UEP_HOME/state"; print -rl -- $ST_CUR > "$ST_BASE"; }
+st_save() { mkdir -p "$UEP_DATA/state"; print -rl -- $ST_CUR > "$ST_BASE"; }
 
 st_run() {
   local g dir title key label prog hash signer state value note count l k
   local -A old seen
   local -a fields
 
-  mkdir -p "$UEP_HOME/state"
+  mkdir -p "$UEP_DATA/state"
   ST_FIRST=0; ST_NEW=0; ST_CHANGED=0; ST_REMOVED=0
   [[ -f $ST_BASE ]] || ST_FIRST=1
   ST_CUR=("${(@f)$(st_collect)}"); ST_CUR=(${ST_CUR:#})

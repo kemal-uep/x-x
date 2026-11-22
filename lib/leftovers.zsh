@@ -23,9 +23,9 @@ LO_SAFE_PREFIX=( is.workflow org.cups com.openssh org.openssh io.sentry io.branc
 LO_SAFE_PLAIN=( sentrycrash crashreporter )
 LO_RDNS_TLD="(com|org|net|io|de|us|co|app|dev|ru|cn|jp|fr|uk|me|ch|at|nl|se|it|es|ca|au|tv|info|xyz|ai|so|sh|is|be|pl|tr)"
 
-LO_SEEN="$UEP_HOME/state/apps_seen.tsv"      # UEP'in gördüğü yüklü uygulamalar: kimlik <TAB> ad <TAB> yol
-LO_GONE="$UEP_HOME/state/apps_gone.tsv"      # görülüp sonra silinenler: kimlik <TAB> ad
-LO_LOG="$UEP_HOME/state/trash_log.tsv"       # geri alma kaydı: oturum <TAB> eski yol <TAB> çöpteki yol
+LO_SEEN="$UEP_DATA/state/apps_seen.tsv"      # UEP'in gördüğü yüklü uygulamalar: kimlik <TAB> ad <TAB> yol
+LO_GONE="$UEP_DATA/state/apps_gone.tsv"      # görülüp sonra silinenler: kimlik <TAB> ad
+LO_LOG="$UEP_DATA/state/trash_log.tsv"       # geri alma kaydı: oturum <TAB> eski yol <TAB> çöpteki yol
 
 typeset -gA LO_IDS LO_VENDORS LO_NAMES LO_TOKENS LO_APPINV LO_REMOVED LO_HIST LO_DISK_CACHE
 typeset -ga LO_FOUND
@@ -115,7 +115,7 @@ lo_inventory_update() {
   local l id
   local -a f
   local -A gone
-  mkdir -p "$UEP_HOME/state"
+  mkdir -p "$UEP_DATA/state"
   # tarama bozuksa (neredeyse hiç uygulama yoksa) hiçbir şeyi "silinmiş" sayma
   (( ${#LO_APPINV} >= ${UEP_MIN_APPS:-3} )) || return 1
 
@@ -312,7 +312,7 @@ lo_find_orphans() {
 lo_trash() { # Çöp Kutusu'na taşı (gerekirse sudo), geri alma kaydı tut
   local src=$1 dest rc
   [[ -d $HOME/.Trash ]] || mkdir -p "$HOME/.Trash"
-  mkdir -p "$UEP_HOME/state"
+  mkdir -p "$UEP_DATA/state"
   dest="$HOME/.Trash/${src:t}"
   [[ -e $dest ]] && dest="$HOME/.Trash/${src:t} (uep $(date +%H%M%S)-$RANDOM)"
   if [[ -w ${src:h} ]]; then mv -- "$src" "$dest" 2>/dev/null; rc=$?

@@ -2,9 +2,9 @@
 # Tarama hiçbir dosyayı silmez. Virüslü dosyalar ancak sen onaylarsan karantinaya taşınır.
 # Karantinadaki dosya geri yüklenebilir. Kalıcı silme ayrı bir onay ister.
 
-VR_QDIR="$UEP_HOME/quarantine"
-VR_QLOG="$UEP_HOME/state/quarantine.tsv"
-VR_LAST="$UEP_HOME/state/last_scan.txt"       # epoch|mod|dosya|virüslü
+VR_QDIR="$UEP_DATA/quarantine"
+VR_QLOG="$UEP_DATA/state/quarantine.tsv"
+VR_LAST="$UEP_DATA/state/last_scan.txt"       # epoch|mod|dosya|virüslü
 VR_DB_MSG=""
 
 vr_bin() { # programın yolunu bul: vr_bin clamscan
@@ -15,10 +15,18 @@ vr_bin() { # programın yolunu bul: vr_bin clamscan
   return 1
 }
 
+vr_fc_conf() { # yeni kurulan ClamAV'de ayar dosyası yoksa örnekten oluştur
+  local etc="${1:h:h}/etc/clamav"
+  [[ -f $etc/freshclam.conf ]] && return 0
+  [[ -f $etc/freshclam.conf.sample && -w $etc ]] || return 1
+  sed -e 's/^Example/#Example/' "$etc/freshclam.conf.sample" > "$etc/freshclam.conf"
+}
+
 vr_update_db() { # virüs listesini güncelle -> VR_DB_MSG
   local fc out
   VR_DB_MSG="güncellenemedi (freshclam yok)"
   fc=$(vr_bin freshclam) || return 1
+  vr_fc_conf "$fc"
   out=$($fc 2>&1 | grep -v 'X509')
   if [[ $out == *"updated"* ]]; then VR_DB_MSG="GÜNCELLENDİ"; return 0
   elif [[ $out == *"up-to-date"* || $out == *"up to date"* ]]; then VR_DB_MSG="GÜNCEL"; return 0
@@ -39,7 +47,7 @@ vr_last_line() { # son tarama özeti (düz metin)
 # dosyayı karantinaya taşı: vr_quarantine <yol> <sebep>
 vr_quarantine() {
   local src=$1 reason=$2 id dest
-  mkdir -p "$VR_QDIR" "$UEP_HOME/state"
+  mkdir -p "$VR_QDIR" "$UEP_DATA/state"
   id="$(date +%Y%m%d-%H%M%S)-$RANDOM"
   dest="$VR_QDIR/${id}__${src:t}"
   if [[ -w ${src:h} ]]; then
@@ -83,8 +91,8 @@ vr_scan() { # vr_scan hizli|tam
   ui_status "${mname} tarama başlıyor · ${#exist} konum"
   print
 
-  mkdir -p "$UEP_HOME/reports"
-  log="$UEP_HOME/reports/.scan_$$.log"
+  mkdir -p "$UEP_DATA/reports"
+  log="$UEP_DATA/reports/.scan_$$.log"
   args=( -r -i
     "--exclude-dir=Library/CloudStorage" "--exclude-dir=Library/Mobile Documents"
     "--exclude-dir=/Dropbox" "--exclude-dir=/\.Trash" "--exclude-dir=${VR_QDIR}" )
@@ -135,7 +143,7 @@ vr_scan() { # vr_scan hizli|tam
   ui_section_end
 
   if (( ! cancelled )); then
-    mkdir -p "$UEP_HOME/state"
+    mkdir -p "$UEP_DATA/state"
     print -r -- "$(date +%s)|${mname}|${files:-0}|${#hits}" > "$VR_LAST"
   fi
 

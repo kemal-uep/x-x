@@ -39,8 +39,8 @@ rp_full() {
   fi
   ui_section_end
 
-  mkdir -p "$UEP_HOME/state"
-  date +%s > "$UEP_HOME/state/last_full"
+  mkdir -p "$UEP_DATA/state"
+  date +%s > "$UEP_DATA/state/last_full"
 
   print
   if (( tbad == 0 && twarn == 0 )); then

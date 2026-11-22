@@ -3,6 +3,10 @@
 # Çalıştır: uep  (komut adı uep olarak kalır)
 
 UEP_HOME="${0:A:h}"
+# Kayıtların yeri: git ile indirildiyse kendi klasörü, Homebrew ile kurulduysa ~/.x-x
+if [[ -z $UEP_DATA ]]; then
+  if [[ -d $UEP_HOME/.git ]]; then UEP_DATA="$UEP_HOME"; else UEP_DATA="$HOME/.x-x"; fi
+fi
 [[ ${LC_ALL:-${LC_CTYPE:-$LANG}} == *UTF-8* ]] || export LC_ALL=en_US.UTF-8
 
 for UEP_MOD in ui security startup config system virus update report leftovers; do
@@ -16,7 +20,7 @@ uep_exit() {
 }
 trap uep_exit INT TERM
 
-mkdir -p "$UEP_HOME/state" "$UEP_HOME/reports"
+mkdir -p "$UEP_DATA/state" "$UEP_DATA/reports"
 
 [[ -n $UEP_NOSPLASH ]] || ui_splash
 

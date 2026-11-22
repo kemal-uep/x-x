@@ -122,9 +122,9 @@ ui_readline() {
 # ---------- rapor ----------
 UEP_REPORT=""
 ui_report_start() { # ui_report_start security
-  mkdir -p "$UEP_HOME/reports"
-  UEP_REPORT="$UEP_HOME/reports/${1}_$(date +%Y-%m-%d_%H-%M).txt"
-  print -r -- "UEP raporu — $1 — $(date '+%d.%m.%Y %H:%M') — $(scutil --get ComputerName 2>/dev/null)" > "$UEP_REPORT"
+  mkdir -p "$UEP_DATA/reports"
+  UEP_REPORT="$UEP_DATA/reports/${1}_$(date +%Y-%m-%d_%H-%M).txt"
+  print -r -- "x/x raporu — $1 — $(date '+%d.%m.%Y %H:%M') — $(scutil --get ComputerName 2>/dev/null)" > "$UEP_REPORT"
   print -r -- "" >> "$UEP_REPORT"
 }
 ui_report() {
@@ -279,8 +279,8 @@ ui_header() {
   date=$(date '+%d.%m.%Y // %H:%M:%S')
   batt=$(pmset -g batt 2>/dev/null | grep -o '[0-9]*%' | head -1)
   lastline="${C_DIM}tam rapor: henüz yok${C_RESET}"
-  if [[ -r $UEP_HOME/state/last_full ]]; then
-    last=$(<"$UEP_HOME/state/last_full")
+  if [[ -r $UEP_DATA/state/last_full ]]; then
+    last=$(<"$UEP_DATA/state/last_full")
     if [[ $last == <-> ]]; then
       if (( $(date +%s) - last > 30 * 86400 )); then
         lastline="${C_WARN}son tam rapor: $(ui_days_ago $last)${C_RESET}"

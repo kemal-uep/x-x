@@ -1,7 +1,7 @@
 # x/x — 4. Sistem raporu: pil, disk, yedek
 # Sadece okur. Hiçbir şeyi silmez.
 
-SYS_BLOG="$UEP_HOME/state/battery_log.tsv"
+SYS_BLOG="$UEP_DATA/state/battery_log.tsv"
 SYS_CYC=""; SYS_CAP=""
 
 sys_battery_read() { # SYS_CYC (döngü) ve SYS_CAP (kapasite %) değerlerini doldurur
@@ -24,7 +24,7 @@ sys_battery_read() { # SYS_CYC (döngü) ve SYS_CAP (kapasite %) değerlerini do
 sys_battery_log() { # günde bir kayıt tut
   local today
   today=$(date +%Y-%m-%d)
-  mkdir -p "$UEP_HOME/state"
+  mkdir -p "$UEP_DATA/state"
   [[ -f $SYS_BLOG ]] && grep -q "^${today}"$'\t' "$SYS_BLOG" && return 0
   print -r -- "${today}"$'\t'"${SYS_CYC}"$'\t'"${SYS_CAP}" >> "$SYS_BLOG"
 }
