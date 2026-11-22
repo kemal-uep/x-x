@@ -208,6 +208,7 @@ UEP_EN=(
   "virüs listesi:" "virus database:"
   "%s tarama başlıyor · %s konum" "%s scan starting · %s locations"
   "taranıyor" "scanning"
+  "dosya" "files"
   "bulunan:" "found:"
   "[Ctrl+C] iptal" "[Ctrl+C] cancel"
   "✘ Tarama çalışmadı." "✘ The scan did not run."

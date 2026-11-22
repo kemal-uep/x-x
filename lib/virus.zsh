@@ -65,6 +65,7 @@ vr_quarantine() {
 VR_CD_PID=""; VR_CDS=""
 VR_CD_CONF="$UEP_DATA/state/clamd.conf"
 VR_CD_SOCK="/tmp/xx-clamd-${UID}.sock"
+VR_CD_LOG="$UEP_DATA/state/clamd_scan.log"   # her temiz dosya bir satır: taranan dosya sayısı buradan sayılır
 
 # taramada atlanan yerler (silinmez, sadece taranmaz). ClamAV regex biçimi.
 vr_excludes() {
@@ -90,9 +91,13 @@ vr_clamd_start() { # vr_clamd_start <clamscan yolu>
     print -r -- "Foreground yes"
     print -r -- "MaxThreads $n"
     print -r -- "MaxQueue $(( n * 10 ))"
+    print -r -- "LogFile $VR_CD_LOG"
+    print -r -- "LogClean yes"
+    print -r -- "LogFileMaxSize 0"
+    print -r -- "LogTime no"
     vr_excludes | while IFS= read -r e; do print -r -- "ExcludePath $e"; done
   } > "$VR_CD_CONF"
-  rm -f -- "$VR_CD_SOCK"
+  rm -f -- "$VR_CD_SOCK"; : > "$VR_CD_LOG"
   ui_status "$(TF "hızlı motor hazırlanıyor · %s çekirdek..." $n)"
   "$cd" -c "$VR_CD_CONF" >/dev/null 2>&1 &
   VR_CD_PID=$!
@@ -104,6 +109,11 @@ vr_clamd_start() { # vr_clamd_start <clamscan yolu>
   vr_clamd_stop; return 1
 }
 
+vr_clamd_count() { # hızlı motorun şimdiye kadar taradığı dosya sayısı
+  [[ -r $VR_CD_LOG ]] || { print 0; return; }
+  grep -cE ': (OK|.+ FOUND)$' "$VR_CD_LOG" 2>/dev/null || print 0
+}
+
 vr_clamd_stop() {
   [[ -n $VR_CD_PID ]] && { kill $VR_CD_PID 2>/dev/null; wait $VR_CD_PID 2>/dev/null; }
   VR_CD_PID=""; rm -f -- "$VR_CD_SOCK"
@@ -111,7 +121,7 @@ vr_clamd_stop() {
 
 vr_scan() { # vr_scan hizli|tam
   setopt local_options local_traps
-  local mode=$1 mname cs log pid t0 i=0 nfound files infected l p vname ok fail cancelled=0 title
+  local mode=$1 mname cs log pid t0 i=0 nfound nfiles files infected l p vname ok fail cancelled=0 title fast=0
   local -i el=0
   local -a targets args hits spin exist
   cs=$(vr_bin clamscan)
@@ -144,6 +154,7 @@ vr_scan() { # vr_scan hizli|tam
   log="$UEP_DATA/reports/.scan_$$.log"
   : > "$log"
   if vr_clamd_start "$cs"; then
+    fast=1
     "$VR_CDS" -c "$VR_CD_CONF" --multiscan -i $exist > "$log" 2>&1 &
   else
     [[ -n $VR_CDS ]] && ui_status "hızlı motor açılamadı · tek çekirdekle devam"
@@ -155,23 +166,28 @@ vr_scan() { # vr_scan hizli|tam
   trap 'cancelled=1; kill $pid 2>/dev/null; vr_clamd_stop' INT
 
   spin=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
-  local w_scan="taranıyor" w_found="bulunan:" w_cancel="[Ctrl+C] iptal"
-  i18n_var w_scan; i18n_var w_found; i18n_var w_cancel
+  local w_scan="taranıyor" w_found="bulunan:" w_cancel="[Ctrl+C] iptal" w_files="dosya"
+  i18n_var w_scan; i18n_var w_found; i18n_var w_cancel; i18n_var w_files
   t0=$SECONDS
   print -rn -- $'\e[?25l'
   while kill -0 $pid 2>/dev/null; do
     (( i += 1 ))
     el=$(( SECONDS - t0 ))
-    if (( i % 10 == 1 )); then nfound=$(grep -c ' FOUND$' "$log" 2>/dev/null); fi
-    print -rn -- $'\r'"  ${C_B1}${spin[$(( i % 10 + 1 ))]}${C_RESET} ${C_TXT}${w_scan}${C_RESET} ${C_DIM}·${C_RESET} ${C_TXT}$(printf '%02d:%02d' $(( el / 60 )) $(( el % 60 )))${C_RESET} ${C_DIM}· ${w_found}${C_RESET} ${C_TXT}${nfound:-0}${C_RESET}   ${C_DIM}${w_cancel}${C_RESET}"$'\e[K'
+    if (( i % 10 == 1 )); then
+      nfound=$(grep -c ' FOUND$' "$log" 2>/dev/null)
+      (( fast )) && nfiles=$(wc -l < "$VR_CD_LOG" 2>/dev/null) && nfiles=${nfiles// /}
+    fi
+    print -rn -- $'\r'"  ${C_B1}${spin[$(( i % 10 + 1 ))]}${C_RESET} ${C_TXT}${w_scan}${C_RESET} ${C_DIM}·${C_RESET} ${C_TXT}$(printf '%02d:%02d' $(( el / 60 )) $(( el % 60 )))${C_RESET}${nfiles:+ ${C_DIM}·${C_RESET} ${C_TXT}${nfiles}${C_RESET} ${C_DIM}${w_files}${C_RESET}} ${C_DIM}· ${w_found}${C_RESET} ${C_TXT}${nfound:-0}${C_RESET}   ${C_DIM}${w_cancel}${C_RESET}"$'\e[K'
     ui_cs 10
   done
   wait $pid 2>/dev/null
   print -rn -- $'\r\e[K\e[?25h'
   vr_clamd_stop
+  (( fast )) && files=$(vr_clamd_count)
+  rm -f -- "$VR_CD_LOG"
   el=$(( SECONDS - t0 ))
 
-  files=$(grep -E '^Scanned files:' "$log" | grep -oE '[0-9]+' | head -1)
+  [[ -n $files ]] || files=$(grep -E '^Scanned files:' "$log" | grep -oE '[0-9]+' | head -1)
   infected=$(grep -E '^Infected files:' "$log" | grep -oE '[0-9]+' | head -1)
   hits=("${(@f)$(grep ' FOUND$' "$log")}"); hits=(${hits:#})
 
