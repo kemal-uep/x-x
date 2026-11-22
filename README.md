@@ -27,10 +27,14 @@ uep
 ## Kurulum (yeni bir Mac'te)
 
 ```
-git clone <bu depo> ~/uep
+git clone https://github.com/kemal-uep/x-x.git ~/uep
 chmod +x ~/uep/uep
 ln -sf ~/uep/uep /opt/homebrew/bin/uep
 brew install clamav            # sadece virüs taraması için
 ```
 
 `state/`, `reports/` ve `quarantine/` her Mac'te kendiliğinden oluşur, depoya girmez.
+
+## Lisans
+
+MIT. Dileyen kullanabilir, değiştirebilir, paylaşabilir. Detay: `LICENSE`.
