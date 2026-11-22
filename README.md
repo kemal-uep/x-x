@@ -47,7 +47,7 @@ uep
 | 2 | Startup watch | Tracks launch agents, daemons and cron jobs. Shows what is new, changed or removed since last time |
 | 3 | Config file guard | Watches `.zprofile`, `.zshrc`, `/etc/hosts`, SSH keys, `.npmrc`, pip config and more. Flags suspicious lines like `curl … \| sh` |
 | 4 | System report | Battery health, disk space, biggest folders, Trash, Time Machine |
-| 5 | Virus scan | Quick or full scan with ClamAV. The virus database updates automatically |
+| 5 | Virus scan | Quick or full scan with ClamAV. The virus database updates automatically. The full scan uses every CPU core (a temporary `clamd` that stops when the scan ends; falls back to single-core `clamscan` if it can't start). Skips caches, the Photos library, `node_modules` and `.git` — skipped folders are only not scanned, nothing is deleted |
 | 6 | Quarantine | Infected files are moved, not deleted. Restore or delete them later |
 | 7 | Update | Homebrew packages, virus database, macOS update check |
 | 8 | Full report | Runs 1–4 in one go and saves a report |
@@ -108,7 +108,7 @@ uep
 | 2 | Başlangıç takibi | Açılışta çalışan öğeleri izler, yeni / değişen / kaldırılanı gösterir |
 | 3 | Ayar dosyası bekçisi | `.zprofile`, `hosts`, SSH anahtarları vb. değişikliklerini gösterir |
 | 4 | Sistem raporu | Pil, disk, yedek |
-| 5 | Virüs taraması | ClamAV ile hızlı ya da tam tarama |
+| 5 | Virüs taraması | ClamAV ile hızlı ya da tam tarama. Tam tarama tüm işlemci çekirdeklerini kullanır, açılamazsa tek çekirdekle devam eder. Önbellek, Fotoğraflar arşivi, `node_modules` ve `.git` atlanır: sadece taranmaz, hiçbir şey silinmez |
 | 6 | Karantina | Virüslü dosyaları geri yükle ya da kalıcı sil |
 | 7 | Güncelle | Homebrew, virüs listesi, macOS |
 | 8 | Tam rapor | 1-4'ü art arda çalıştırır |
