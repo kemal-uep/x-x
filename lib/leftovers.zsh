@@ -521,10 +521,6 @@ lo_uninstall() {
     ui_key
     [[ $REPLY == [dDcC] ]] || return
   fi
-  if pgrep -xq "$name" 2>/dev/null; then
-    print -r -- "  ${C_WARN}$(TF "! %s şu an açık. Önce kapat, sonra tekrar dene." "$name")${C_RESET}"; ui_pause; return
-  fi
-
   ui_report_start "uninstall_${name// /_}"
   # sadece bu uygulamanın kimliği ya da tam adıyla eşleşen dosyalar
   for d in $LO_USER_DIRS; do dirs+=("$HOME/Library/$d"); done
@@ -541,6 +537,17 @@ lo_uninstall() {
       fi
     done
   done
+  # açılış kayıtları: kimliği uygulamanınkiyle başlayan ya da programı bu dosyaların içinde olanlar
+  lo_launch_items "$id" "$files[@]"
+  files+=($reply)
+  # uygulamanın oluşturduğu kısayollar (ör. Steam oyun kısayolları)
+  lo_shortcuts "$app" "$id"
+  local -a shortcuts=($reply)
+  files+=($shortcuts)
+  files=( ${(u)files} )
+
+  # çalışıyor mu? (program adı uygulama adından farklı olabilir: süreçlerin yoluna bakılır)
+  lo_quit_running "$name" "$id" "$files[@]" || { ui_pause; return; }
 
   ui_section_start "$(T "KALDIRILACAK") · ${name}"
   for e in $files; do
@@ -548,6 +555,7 @@ lo_uninstall() {
     hs=$(ui_human $kb)
     sp=$(ui_cut_left "${e/#$HOME/~}" $(( UEP_W - 20 )))
     pad=$(( UEP_W - 6 - ${#sp} - ${#hs} )); (( pad < 1 )) && pad=1
+    if (( ${shortcuts[(Ie)$e]} )); then hs="$(T "kısayol") · $hs"; pad=$(( UEP_W - 6 - ${#sp} - ${#hs} )); (( pad < 1 )) && pad=1; fi
     ui_section_row "  ${C_TXT}${sp}${C_RESET}$(ui_rep ' ' $pad)${C_DIM}${hs}${C_RESET}"
     ui_report "$(T "[seçildi]") $e"
   done
@@ -555,11 +563,109 @@ lo_uninstall() {
   print -r -- "  ${C_TXT}$(TF "%s öğe · toplam %s" ${#files} "$(ui_human $total)")${C_RESET}"
   print -rn -- "  ${C_B1}$(T "[e]")${C_RESET} ${C_TXT}$(T "Evet, hepsini Çöp Kutusu'na taşı")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] iptal")${C_RESET}  ▸ "
   ui_key
-  if [[ $REPLY == [eEyY] ]]; then lo_move_list "${files[@]}"
+  if [[ $REPLY == [eEyY] ]]; then
+    lo_launch_stop "${files[@]}"
+    lo_move_list "${files[@]}"
+    print -r -- "  ${C_DIM}$(T "Oturum Açma Öğeleri listesinde adı bir süre kalabilir. Mac yeniden başlayınca kaybolur.")${C_RESET}"
   else print -r -- "  ${C_DIM}$(T "İptal edildi. Hiçbir şey taşınmadı.")${C_RESET}"
   fi
   UEP_REPORT=""
   ui_pause
+}
+
+# ---------- kaldırma yardımcıları ----------
+# açılış kayıtları -> reply. $1 = kimlik, sonrası = uygulamanın dosyaları
+lo_launch_items() {
+  local id=$1 f n prog p hit
+  shift
+  reply=()
+  for f in $HOME/Library/LaunchAgents/*.plist(N) $UEP_ROOT/Library/LaunchAgents/*.plist(N) $UEP_ROOT/Library/LaunchDaemons/*.plist(N); do
+    (( ${argv[(Ie)$f]} )) && continue
+    n=$(lo_norm "${f:t}")
+    lo_never "$n" && continue
+    prog=$(lo_plist_prog "$f")
+    hit=0
+    for p in "$@"; do [[ -n $prog && ( $prog == $p || $prog == $p/* ) ]] && { hit=1; break; }; done
+    # kimlik aynı başlıyor (com.valvesoftware.steam -> com.valvesoftware.steamclean) ve programı başka bir yerde yaşamıyor
+    if (( ! hit )) && [[ -n $id && $id == *.*.* && $n == ${id}* ]]; then
+      [[ -z $prog || ! -e $prog ]] && hit=1
+    fi
+    (( hit )) && reply+=("$f")
+  done
+  return 0
+}
+
+# kısayollar -> reply. Başka bir .app paketi içinde bu uygulamanın kimliği ya da adresi (ör. steam://) geçiyorsa.
+lo_shortcuts() {
+  local app=$1 id=$2 s c
+  local -a schemes pats cands
+  reply=()
+  schemes=( ${(f)"$(plutil -extract CFBundleURLTypes xml1 -o - "$app/Contents/Info.plist" 2>/dev/null | sed -n 's:.*<string>\(.*\)</string>.*:\1:p')"} )
+  pats=()
+  [[ -n $id ]] && pats+=(-e "$id")
+  for s in $schemes; do [[ $s == [a-z][a-z0-9+-]## && $s != (http|https|file|mailto) ]] && pats+=(-e "${s}://"); done
+  (( ${#pats} )) || return 0
+  cands=( $HOME/Applications/*.app(N) $HOME/Applications/*/*.app(N) $UEP_ROOT/Applications/*.app(N) $UEP_ROOT/Applications/*/*.app(N) )
+  for c in $cands; do
+    [[ ${c:A} == ${app:A} || ${c:A} == ${app:A}/* ]] && continue
+    lo_never "${c:t}" && continue
+    grep -qsiIF "${pats[@]}" "$c/Contents/Info.plist" $c/Contents/MacOS/*(N.Lk-300) 2>/dev/null && reply+=("$c")
+  done
+  return 0
+}
+
+# bu dosyaların içinden çalışan programlar varsa göster, kullanıcı isterse kapat. 1 = devam edilemez
+# bu yolların içinden çalışan süreçler -> pids, rows (çağıranın değişkenleri)
+lo_running() {
+  local pid c p
+  pids=(); rows=()
+  ps -axo pid=,comm= 2>/dev/null | while read -r pid c; do
+    for p in "$@"; do
+      [[ $c == $p || $c == $p/* ]] && { pids+=($pid); rows+=("$c"); break; }
+    done
+  done
+  return 0
+}
+
+lo_quit_running() {
+  local name=$1 id=$2 c i
+  local -a pids rows
+  shift 2
+  lo_running "$@"
+  (( ${#pids} )) || return 0
+  print
+  print -r -- "  ${C_WARN}$(TF "! %s şu an açık. Açıkken silinirse dosyalarını geri yaratır." "$name")${C_RESET}"
+  for c in $rows; do print -r -- "    ${C_DIM}$(ui_cut_left "${c/#$HOME/~}" 66)${C_RESET}"; done
+  print -rn -- "  ${C_B1}$(T "[k]")${C_RESET} ${C_TXT}$(T "Kapat ve devam et")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] iptal")${C_RESET}  ▸ "
+  ui_key
+  [[ $REPLY == [kKqQ] ]] || return 1
+  [[ -n $id ]] && osascript -e "quit app id \"$id\"" >/dev/null 2>&1
+  for i in {1..10}; do lo_running "$@"; (( ${#pids} )) || return 0; sleep 1; done
+  print -r -- "  ${C_WARN}$(T "! Kendi kendine kapanmadı.")${C_RESET}"
+  print -rn -- "  ${C_B1}$(T "[z]")${C_RESET} ${C_TXT}$(T "Zorla kapat")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] iptal")${C_RESET}  ▸ "
+  ui_key
+  [[ $REPLY == [zZfF] ]] || return 1
+  kill $pids 2>/dev/null; sleep 2
+  lo_running "$@"; (( ${#pids} )) && kill -9 $pids 2>/dev/null; sleep 1
+  lo_running "$@"
+  if (( ${#pids} )); then
+    print -r -- "  ${C_BAD}$(T "Kapatılamadı. İşlem iptal.")${C_RESET}"; return 1
+  fi
+  return 0
+}
+
+# açılış kayıtlarını durdur (çöpe atmadan önce, yoksa çalışmaya devam eder)
+lo_launch_stop() {
+  local f label
+  for f in "$@"; do
+    [[ $f == */Library/Launch(Agents|Daemons)/*.plist ]] || continue
+    label=$(plutil -extract Label raw -o - "$f" 2>/dev/null); [[ -n $label ]] || continue
+    if [[ $f == $HOME/* ]]; then launchctl bootout "gui/$UID/$label" >/dev/null 2>&1
+    elif [[ $f == */LaunchDaemons/* ]]; then sudo launchctl bootout "system/$label" >/dev/null 2>&1
+    else sudo launchctl bootout "gui/$UID/$label" >/dev/null 2>&1
+    fi
+  done
+  return 0
 }
 
 # ---------- alt menü ----------
