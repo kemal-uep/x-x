@@ -32,7 +32,7 @@ brew install kemal-uep/tap/uep
 ```sh
 git clone https://github.com/kemal-uep/x-x.git ~/uep
 ln -sf ~/uep/uep /opt/homebrew/bin/uep
-brew install clamav        # only needed for virus scans
+brew install clamav yara   # only needed for virus scans
 ```
 
 Then run:
@@ -49,7 +49,7 @@ uep
 | 2 | Startup watch | Tracks launch agents, daemons and cron jobs. Shows what is new, changed or removed since last time |
 | 3 | Config file guard | Watches `.zprofile`, `.zshrc`, `/etc/hosts`, SSH keys, `.npmrc`, pip config and more. Flags suspicious lines like `curl … \| sh` |
 | 4 | System report | Battery health, disk space, biggest folders, Trash, Time Machine |
-| 5 | Virus scan | Quick or full scan with ClamAV. The virus database updates automatically. The full scan uses every CPU core (a temporary `clamd` that stops when the scan ends; falls back to single-core `clamscan` if it can't start). Skips caches, the Photos library, `node_modules` and `.git` — skipped folders are only not scanned, nothing is deleted |
+| 5 | Virus scan | Quick or full scan with two engines at once: ClamAV, plus Apple's own Mac malware rules (XProtect, via `yara`; recompiled automatically when Apple updates them). The XProtect engine only reads programs and scripts, so it stays fast and also covers caches and the Trash. ClamAV's database updates automatically; the full scan uses every CPU core. Skips cloud folders (iCloud, Dropbox, Google Drive), the Photos library, `node_modules` and `.git`. Each hit shows whose file it is, who signed it and a recommendation; quarantine one by one or all at once. Nothing is deleted |
 | 6 | Quarantine | Infected files are moved, not deleted. Restore or delete them later |
 | 7 | Update | Homebrew packages, virus database, macOS update check |
 | 8 | Full report | Runs 1–4 in one go and saves a report |
@@ -76,6 +76,7 @@ Press `⌫` on any screen to go back.
 - macOS (Apple Silicon or Intel)
 - zsh (default on macOS)
 - [ClamAV](https://www.clamav.net/) for virus scans (installed automatically with Homebrew)
+- [YARA](https://virustotal.github.io/yara/) to run Apple's XProtect rules (`brew install yara`)
 
 ## License
 
@@ -112,7 +113,7 @@ uep
 | 2 | Başlangıç takibi | Açılışta çalışan öğeleri izler, yeni / değişen / kaldırılanı gösterir |
 | 3 | Ayar dosyası bekçisi | `.zprofile`, `hosts`, SSH anahtarları vb. değişikliklerini gösterir |
 | 4 | Sistem raporu | Pil, disk, yedek |
-| 5 | Virüs taraması | ClamAV ile hızlı ya da tam tarama. Tam tarama tüm işlemci çekirdeklerini kullanır, açılamazsa tek çekirdekle devam eder. Önbellek, Fotoğraflar arşivi, `node_modules` ve `.git` atlanır: sadece taranmaz, hiçbir şey silinmez |
+| 5 | Virüs taraması | İki motor aynı anda: ClamAV ve Apple'ın Mac'e özel virüs kuralları (XProtect, `yara` ile; Apple güncelleyince kendiliğinden yenilenir). XProtect motoru sadece program ve script'leri okur, bu yüzden hızlıdır; önbellek ve Çöp Kutusu'na da bakar. Bulut klasörleri (iCloud, Dropbox, Google Drive), Fotoğraflar arşivi, `node_modules` ve `.git` atlanır. Her bulgunun altında kimin dosyası olduğu, imzası ve tavsiye yazar; karantinaya tek tek ya da hepsi birden alınır. Hiçbir şey silinmez |
 | 6 | Karantina | Virüslü dosyaları geri yükle ya da kalıcı sil |
 | 7 | Güncelle | Homebrew, virüs listesi, macOS |
 | 8 | Tam rapor | 1-4'ü art arda çalıştırır |

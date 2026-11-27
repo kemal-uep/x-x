@@ -498,6 +498,9 @@ lo_uninstall() {
   setopt nocaseglob
   apps=( $UEP_ROOT/Applications/*${q}*.app(N:A) $UEP_ROOT/Applications/*/*${q}*.app(N:A) $HOME/Applications/*${q}*.app(N:A) )
   unsetopt nocaseglob
+  # Uygulamalar dışındakiler (ör. ~/Games, Epic/Steam oyunları): Spotlight ile dosya adına ve görünen ada göre ara
+  local qs=${q//[\'\"\\*]/}
+  [[ -n $qs ]] && apps+=( ${(f)"$(mdfind "kMDItemContentType == 'com.apple.application-bundle' && (kMDItemFSName == '*${qs}*'cd || kMDItemDisplayName == '*${qs}*'cd)" 2>/dev/null | grep -v -e '/\.Trash/' -e '\.app/' -e '^/System/' -e '^/Library/' -e '^/usr/' -e '^/private/' -e '^/Volumes/')"} )
   apps=( ${(u)apps} )
   if (( ${#apps} == 0 )); then print -r -- "  ${C_WARN}$(T "Bu isimle uygulama bulunamadı.")${C_RESET}"; ui_pause; return; fi
 
@@ -526,6 +529,11 @@ lo_uninstall() {
   for d in $LO_USER_DIRS; do dirs+=("$HOME/Library/$d"); done
   dirs+=($LO_SYS_DIRS)
   files=("$app")
+  # oyun klasöründeki uygulama (ör. ~/Games/EuropaUniversalis4/eu4.app): oyunun tüm klasörü gösterilir
+  local gdir=${app:h}
+  case ${gdir:h} in
+    $HOME/Games|"$UEP_ROOT/Users/Shared/Epic Games"|*/steamapps/common) files=("$gdir") ;;
+  esac
   for d in $dirs; do
     [[ -d $d ]] || continue
     for e in "$d"/*(N); do

@@ -35,6 +35,62 @@ vr_update_db() { # virüs listesini güncelle -> VR_DB_MSG
   return 1
 }
 
+vr_xp_rules() { # Apple XProtect kurallarını derle (Apple güncelleyince yeniden) -> derlenmiş dosyanın yolu
+  local b src="" t=0 mt yc out="$UEP_DATA/state/xprotect.yarc"
+  for b in /Library/Apple/System/Library/CoreServices/XProtect.bundle /private/var/protected/xprotect/XProtect.bundle; do
+    [[ -r $b/Contents/Resources/XProtect.yara ]] || continue
+    mt=$(stat -f %m "$b/Contents/Resources/XProtect.yara" 2>/dev/null) || continue
+    (( mt > t )) && { t=$mt; src=$b/Contents/Resources/XProtect.yara; }
+  done
+  [[ -n $src ]] || return 1
+  yc=$(vr_bin yarac) || return 1
+  mkdir -p "$UEP_DATA/state"
+  if [[ ! -s $out || $src -nt $out ]]; then
+    "$yc" -w "$src" "$out" >/dev/null 2>&1 || { rm -f -- "$out"; return 1; }
+  fi
+  print -r -- "$out"
+}
+
+# bulunan dosya kimin, imzalı mı, ne yapılmalı -> reply=(sahibi imza risk)   risk: safe | danger | unknown
+vr_who() {
+  local p=$1 t owner sig risk a
+  reply=()
+  if [[ $p == *.app/* ]]; then a=${p%%.app/*}.app; owner=${a:t:r}; t=$a
+  elif [[ $p == *.app ]]; then owner=${p:t:r}; t=$p
+  elif [[ $p == $HOME/Library/*/*/* ]]; then owner=${${p#$HOME/Library/*/}%%/*}; t=$p
+  else owner=${p:h:t}; t=$p
+    case $p in
+      $HOME/Downloads/*) owner=$(T "İndirilenler klasörü") ;;
+      $HOME/Desktop/*)   owner=$(T "Masaüstü") ;;
+      $HOME/.Trash/*)    owner=$(T "Çöp Kutusu") ;;
+      */LaunchAgents/*|*/LaunchDaemons/*) owner=$(T "açılışta çalışan öğe") ;;
+    esac
+  fi
+  # imza: sadece doğrulaması geçen imza sayılır (bozulmuş ya da sahte imza sayılmaz)
+  if codesign --verify --strict "$t" >/dev/null 2>&1; then
+    sig=$(codesign -dv --verbose=2 "$t" 2>&1 | sed -n 's/^Authority=//p' | head -1)
+    sig=${sig#Developer ID Application: }; sig=${sig% \(*\)}
+    [[ $sig == "Apple Mac OS Application Signing" ]] && sig="App Store"
+    [[ $sig == "Software Signing" ]] && sig="Apple"
+  fi
+  if [[ -n $sig ]]; then risk=safe
+  elif [[ $p == ($HOME/Downloads|$HOME/Desktop|$HOME/Library/LaunchAgents|$HOME/.Trash|$UEP_ROOT/Library/LaunchAgents|$UEP_ROOT/Library/LaunchDaemons|$UEP_ROOT/Users/Shared)/* ]]; then risk=danger
+  else risk=unknown
+  fi
+  reply=("$owner" "$sig" "$risk")
+}
+
+# bulunan dosyanın bilgi satırları (sonuç kutusunun içinde)
+vr_who_lines() { # <yol>  (W_OWN W_SIG W_RISK çağıranın)
+  local p=$1
+  ui_detail "   $(T "sahibi:") ${W_OWN[$p]} · $(T "imza:") ${W_SIG[$p]:-$(T "yok")}"
+  case ${W_RISK[$p]} in
+    safe)   ui_detail "   → $(T "imzalı bir firmanın dosyası · büyük ihtimalle yanlış alarm · dokunma")" $C_OK ;;
+    danger) ui_detail "   → $(T "imzasız ve tehlikeli bir yerde · karantinaya al")" $C_BAD ;;
+    *)      ui_detail "   → $(T "imzasız · emin değilsen dokunma")" $C_WARN ;;
+  esac
+}
+
 vr_last_line() { # son tarama özeti (düz metin)
   local l
   local -a f
@@ -175,25 +231,50 @@ vr_scan() { # vr_scan hizli|tam
     $cs $args $exist > "$log" 2>&1 &
   fi
   pid=$!
-  trap 'cancelled=1; kill $pid 2>/dev/null; vr_clamd_stop' INT
-  trap 'kill $pid 2>/dev/null; vr_clamd_stop; rm -f -- "$log" "$VR_CD_LOG"; exit 1' HUP TERM   # pencere kapanırsa da motoru kapat
+  # Mac motoru: Apple'ın XProtect kuralları (yara) · ClamAV ile aynı anda çalışır
+  # Kurallar Mac programları ve script'ler için: sadece bunlar taranır (tasarım dosyaları, videolar atlanır)
+  local yb yr ylog="$UEP_DATA/reports/.xp_$$.log" ylist="$UEP_DATA/reports/.xplist_$$" ypid=0 xp=0
+  : > "$ylog"
+  if yb=$(vr_bin yara) && yr=$(vr_xp_rules); then
+    # ClamAV'in atladığı yerler burada da atlanır (node_modules, .git, iCloud/Dropbox).
+    # Önbellek ve Çöp ise taranır: virüs buralara saklanabilir, bu motor sadece program/script okuduğu için hızlı kalır.
+    local xre; xre=$(vr_excludes | grep -v -e 'Library/Caches' -e 'Trash' | paste -sd'|' -)
+    local -a ytargets=($exist)
+    if [[ $mode != tam ]]; then
+      for p in "$HOME/Library/Caches" "$HOME/.Trash"; do [[ -d $p ]] && ytargets+=("$p"); done
+    fi
+    ( find $ytargets \( -name node_modules -o -name .git -o -name '*.photoslibrary' \) -prune -o \
+        -type f -size -100M \( -perm +111 -o -iname '*.dylib' -o -iname '*.so' \
+        -o -iname '*.sh' -o -iname '*.command' -o -iname '*.py' -o -iname '*.scpt' -o -iname '*.applescript' \
+        -o -iname '*.js' -o -iname '*.jar' -o -iname '*.pkg' -o -iname '*.plist' -o -iname '*.zsh' -o -iname '*.bash' \
+        -o -iname '*.rb' -o -iname '*.pl' -o -iname '*.php' -o -iname '*.bin' -o -iname '*.dylib*' -o -not -name '*.*' \) -print 2>/dev/null | grep -Ev "$xre" > "$ylist"
+      "$yb" -C -w -N -f -p 8 --scan-list "$yr" "$ylist" 2>/dev/null ) > "$ylog" &
+    ypid=$!; xp=1
+    ui_status "Mac motoru: Apple XProtect"
+  else
+    ui_status "Mac motoru açılamadı · sadece ClamAV"
+  fi
+  trap 'cancelled=1; kill $pid 2>/dev/null; (( ypid )) && { pkill -P $ypid 2>/dev/null; kill $ypid 2>/dev/null; }; vr_clamd_stop' INT
+  trap 'kill $pid 2>/dev/null; (( ypid )) && { pkill -P $ypid 2>/dev/null; kill $ypid 2>/dev/null; }; vr_clamd_stop; rm -f -- "$log" "$ylog" "$ylist" "$VR_CD_LOG"; exit 1' HUP TERM   # pencere kapanırsa da motorları kapat
 
   spin=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
   local w_scan="taranıyor" w_found="bulunan:" w_cancel="[Ctrl+C] iptal" w_files="dosya"
   i18n_var w_scan; i18n_var w_found; i18n_var w_cancel; i18n_var w_files
   t0=$SECONDS
   print -rn -- $'\e[?25l'
-  while kill -0 $pid 2>/dev/null; do
+  while kill -0 $pid 2>/dev/null || { (( ypid )) && kill -0 $ypid 2>/dev/null; }; do
     (( i += 1 ))
     el=$(( SECONDS - t0 ))
     if (( i % 10 == 1 )); then
       nfound=$(grep -c ' FOUND$' "$log" 2>/dev/null)
+      (( xp )) && nfound=$(( ${nfound:-0} + $(grep -c . "$ylog" 2>/dev/null) ))
       (( fast )) && nfiles=$(wc -l < "$VR_CD_LOG" 2>/dev/null) && nfiles=${nfiles// /}
     fi
     print -rn -- $'\r'"  ${C_B1}${spin[$(( i % 10 + 1 ))]}${C_RESET} ${C_TXT}${w_scan}${C_RESET} ${C_DIM}·${C_RESET} ${C_TXT}$(printf '%02d:%02d' $(( el / 60 )) $(( el % 60 )))${C_RESET}${nfiles:+ ${C_DIM}·${C_RESET} ${C_TXT}${nfiles}${C_RESET} ${C_DIM}${w_files}${C_RESET}} ${C_DIM}· ${w_found}${C_RESET} ${C_TXT}${nfound:-0}${C_RESET}   ${C_DIM}${w_cancel}${C_RESET}"$'\e[K'
     ui_cs 10
   done
   wait $pid 2>/dev/null
+  (( ypid )) && wait $ypid 2>/dev/null
   print -rn -- $'\r\e[K\e[?25h'
   vr_clamd_stop
   (( fast )) && files=$(vr_clamd_count)
@@ -203,11 +284,21 @@ vr_scan() { # vr_scan hizli|tam
   [[ -n $files ]] || files=$(grep -E '^Scanned files:' "$log" | grep -oE '[0-9]+' | head -1)
   infected=$(grep -E '^Infected files:' "$log" | grep -oE '[0-9]+' | head -1)
   hits=("${(@f)$(grep ' FOUND$' "$log")}"); hits=(${hits:#})
+  # Apple XProtect bulguları: "KURAL /yol" -> aynı biçime çevir, ClamAV'in de bulduğu dosyayı iki kez sayma
+  if (( xp )); then
+    local h dup
+    for l in "${(@f)$(<"$ylog")}"; do
+      [[ $l == *' /'* ]] || continue
+      vname=${l%% *}; p=${l#* }; dup=0
+      for h in $hits; do [[ $h == "$p: "* ]] && { dup=1; break; }; done
+      (( dup )) || hits+=("${p}: Apple.${vname} FOUND")
+    done
+  fi
 
   if [[ -z $files ]] && ! grep -qE '^Infected files:' "$log" && (( ! cancelled )) && (( ${#hits} == 0 )); then
     print -r -- "  ${C_BAD}$(T "✘ Tarama çalışmadı.")${C_RESET}"
     tail -3 "$log" | while IFS= read -r l; do print -r -- "  ${C_DIM}$(ui_cut "$l" 74)${C_RESET}"; done
-    rm -f -- "$log"; UEP_REPORT=""
+    rm -f -- "$log" "$ylog" "$ylist"; UEP_REPORT=""
     ui_pause; return
   fi
 
@@ -216,13 +307,19 @@ vr_scan() { # vr_scan hizli|tam
   (( cancelled )) && ui_check warn "Tarama" "YARIDA KESİLDİ"
   [[ -n $files ]] && ui_check info "Taranan dosya" "$files"
   ui_check info "Süre" "$(printf '%02d:%02d' $(( el / 60 )) $(( el % 60 )))"
+  if (( xp )); then ui_check info "Motorlar" "ClamAV + Apple XProtect"
+  else ui_check warn "Motorlar" "sadece ClamAV" "brew install yara"
+  fi
   if (( ${#hits} == 0 )); then
     (( cancelled )) || ui_check ok "Virüslü dosya" "0"
   else
     ui_check bad "Virüslü dosya" "${#hits}"
+    typeset -A W_OWN W_SIG W_RISK
     for l in $hits; do
       p=${l%: *}; vname=${${l##*: }% FOUND}
+      vr_who "$p"; W_OWN[$p]=${reply[1]}; W_SIG[$p]=${reply[2]}; W_RISK[$p]=${reply[3]}
       ui_detail "✘ $(ui_cut_left "${p/#$HOME/~}" 44)  [${vname}]" $C_BAD
+      vr_who_lines "$p"
     done
   fi
   ui_section_end
@@ -235,16 +332,31 @@ vr_scan() { # vr_scan hizli|tam
   if (( ${#hits} )); then
     print
     print -r -- "  ${C_DIM}$(T "Karantina dosyayı silmez: güvenli bir klasöre taşır, istersen geri alırsın.")${C_RESET}"
-    print -rn -- "  ${C_B1}$(T "[k]")${C_RESET} ${C_TXT}$(T "Hepsini karantinaya al")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] dokunma")${C_RESET}  ▸ "
+    print -rn -- "  ${C_B1}$(T "[t]")${C_RESET} ${C_TXT}$(T "Tek tek sor")${C_RESET}   ${C_B1}$(T "[h]")${C_RESET} ${C_TXT}$(T "Hepsini karantinaya al")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] dokunma")${C_RESET}  ▸ "
     ui_key
-    if [[ $REPLY == [kKyY] ]]; then
+    if [[ $REPLY == [tThHaA] ]]; then
+      local one=0 skip=0; [[ $REPLY == [tT] ]] && one=1
       ok=0; fail=0
       for l in $hits; do
         p=${l%: *}; vname=${${l##*: }% FOUND}
+        if (( one )); then
+          print
+          print -r -- "  ${C_BAD}✘${C_RESET} ${C_TXT}${p/#$HOME/~}${C_RESET}  ${C_DIM}[${vname}]${C_RESET}"
+          print -r -- "    ${C_DIM}$(T "sahibi:") ${W_OWN[$p]} · $(T "imza:") ${W_SIG[$p]:-$(T "yok")}${C_RESET}"
+          case ${W_RISK[$p]} in
+            safe)   print -r -- "    ${C_OK}→ $(T "imzalı bir firmanın dosyası · büyük ihtimalle yanlış alarm · dokunma")${C_RESET}" ;;
+            danger) print -r -- "    ${C_BAD}→ $(T "imzasız ve tehlikeli bir yerde · karantinaya al")${C_RESET}" ;;
+            *)      print -r -- "    ${C_WARN}→ $(T "imzasız · emin değilsen dokunma")${C_RESET}" ;;
+          esac
+          print -rn -- "    ${C_B1}$(T "[k]")${C_RESET} ${C_TXT}$(T "Karantinaya al")${C_RESET}   ${C_DIM}$(T "[başka tuş] geç")${C_RESET}  ▸ "
+          ui_key; print
+          [[ $REPLY == [kKyY] ]] || { (( skip += 1 )); ui_report "$(T "[geçildi]") $p"; continue; }
+        fi
         if [[ -e $p ]] && vr_quarantine "$p" "$vname"; then (( ok += 1 )); ui_report "$(T "[karantina]") $p"
         else (( fail += 1 )); ui_report "$(T "[taşınamadı]") $p"
         fi
       done
+      (( skip )) && print -r -- "  ${C_DIM}$(TF "%s dosyaya dokunulmadı." $skip)${C_RESET}"
       print -r -- "  ${C_OK}${C_BOLD}$(TF "✔ %s dosya karantinaya alındı." $ok)${C_RESET} ${C_DIM}$(T "Ana menü > [6] Karantina")${C_RESET}"
       (( fail )) && print -r -- "  ${C_WARN}$(TF "%s dosya taşınamadı." $fail)${C_RESET}"
     else
@@ -254,7 +366,7 @@ vr_scan() { # vr_scan hizli|tam
     print
     print -r -- "  ${C_OK}${C_BOLD}$(T "✔ Temiz.")${C_RESET} ${C_TXT}$(T "Virüs bulunamadı.")${C_RESET}"
   fi
-  rm -f -- "$log"
+  rm -f -- "$log" "$ylog" "$ylist"
   ui_report_done
   ui_pause
 }
