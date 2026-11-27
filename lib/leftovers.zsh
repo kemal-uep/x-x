@@ -614,7 +614,8 @@ lo_uninstall() {
       ui_section_row "  ${C_TXT}${sp}${C_RESET}$(ui_rep ' ' $pad)${C_DIM}${hs}${C_RESET}"
     done
     ui_section_row ""
-    ui_section_row "  ${C_DIM}$(T "Aynı firmanın başka uygulaması yüklü değil. Büyük ihtimalle bunlar da bu uygulamanın.")${C_RESET}"
+    ui_section_row "  ${C_DIM}$(T "Aynı firmanın başka uygulaması yüklü değil.")${C_RESET}"
+    ui_section_row "  ${C_DIM}$(T "Büyük ihtimalle bunlar da bu uygulamanın.")${C_RESET}"
     ui_section_end
     print -rn -- "  ${C_B1}$(T "[f]")${C_RESET} ${C_TXT}$(T "Bunları da ekle")${C_RESET}   ${C_DIM}$(T "[⌫] ekleme")${C_RESET}  ▸ "
     ui_ask '[fF]'; print

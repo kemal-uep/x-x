@@ -102,6 +102,7 @@ ui_vendor() {
   local n=${${1:t}:l} v
   n=${n%.plist}; n=${n#group.}
   [[ $n == [a-z0-9](#c10).* ]] && n=${n#*.}
+  n=${n#group.}
   [[ $n == (com|net|org|io|app|co|de|me|dev|us|ai|tv|jp|fr|uk|ch|it|nl|se|ru|cn|tw|tr|eu|at|ca|cc).[a-z0-9_-]##.* ]] || return 0
   local -a parts=( ${(s:.:)n} )
   v=${parts[2]}
@@ -124,7 +125,6 @@ ui_vendor() {
     docker)                   v=DOCKER ;;
     tailscale)                v=TAILSCALE ;;
     openai)                   v=OPENAI ;;
-    anthropic)                v=ANTHROPIC ;;
     github)                   v=GITHUB ;;
     jetbrains)                v=JETBRAINS ;;
     *)                        v=${v:u} ;;

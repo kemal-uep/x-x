@@ -135,7 +135,8 @@ st_check() {
     ui_section_start "$(T "ÖLÜ KAYITLAR")"
     for f in $ST_DEAD; do ui_section_row "  ${C_TXT}$(ui_vendor "$f")$(ui_cut_left "${f/#$HOME/~}" $(( UEP_W - 22 )))${C_RESET}"; done
     ui_section_row ""
-    ui_section_row "  ${C_DIM}$(T "Bunların çalıştıracağı program silinmiş. Kalıntıdır, bir işe yaramaz.")${C_RESET}"
+    ui_section_row "  ${C_DIM}$(T "Bunların çalıştıracağı program silinmiş.")${C_RESET}"
+    ui_section_row "  ${C_DIM}$(T "Kalıntıdır, bir işe yaramaz.")${C_RESET}"
     ui_section_end
     print -rn -- "  ${C_B1}$(T "[t]")${C_RESET} ${C_TXT}$(T "Çöp Kutusu'na taşı")${C_RESET}   ${C_DIM}$(T "[⌫] dokunma")${C_RESET}  ▸ "
     ui_ask '[tT]'; print
