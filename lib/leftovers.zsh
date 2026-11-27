@@ -33,6 +33,21 @@ LO_SPOT_OK=0
 LO_SESSION=""
 
 # ---------- küçük yardımcılar ----------
+lo_app_name() { # uygulamanın görünen adı (Disco Elysium), yoksa dosya adı (disco)
+  local n
+  n=$($UEP_PLISTBUDDY -c "Print :CFBundleDisplayName" "$1/Contents/Info.plist" 2>/dev/null)
+  [[ -z $n || $n == *'$'* ]] && n=$($UEP_PLISTBUDDY -c "Print :CFBundleName" "$1/Contents/Info.plist" 2>/dev/null)
+  [[ -z $n || $n == *'$'* ]] && n=${1:t:r}
+  print -r -- "$n"
+}
+
+lo_vendor_other() { # aynı firmanın bu uygulama dışında yüklü başka uygulaması var mı? $1 firma, $2 uygulama
+  local -a r
+  r=( ${(f)"$(mdfind "kMDItemCFBundleIdentifier == '${1}.*'c" 2>/dev/null)"} )
+  r=( ${r:#*/.Trash/*} ); r=( ${r:#${(b)2}} ); r=( ${r:#${(b)2}/*} )
+  (( ${#r} ))
+}
+
 lo_bundle_id() { $UEP_PLISTBUDDY -c "Print :CFBundleIdentifier" "$1/Contents/Info.plist" 2>/dev/null; }
 
 lo_add_id() {
@@ -326,7 +341,7 @@ lo_move_list() { # $@ = yollar; Çöp Kutusu'na taşır ve sonucu yazar
   local p ok=0 fail=0 needs_sudo=0
   LO_SESSION=$(date '+%Y-%m-%d_%H:%M:%S')
   for p in "$@"; do [[ -w ${p:h} ]] || needs_sudo=1; done
-  if (( needs_sudo )); then
+  if (( needs_sudo && ! ${LO_SUDO_OK:-0} )); then
     print -r -- "  ${C_DIM}$(T "Bazı dosyalar sistem klasöründe. Mac şifren istenecek.")${C_RESET}"
     sudo -v || { print -r -- "  ${C_BAD}$(T "Şifre girilmedi, işlem iptal.")${C_RESET}"; return 1; }
   fi
@@ -358,8 +373,8 @@ lo_undo() {
     ui_section_row "  ${C_DIM}$(ui_cut_left "${f[2]/#$HOME/~}" 68)${C_RESET}"
   done
   ui_section_end
-  print -rn -- "  ${C_B1}$(T "[e]")${C_RESET} ${C_TXT}$(T "Bunları eski yerlerine geri koy")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] iptal")${C_RESET}  ▸ "
-  ui_key
+  print -rn -- "  ${C_B1}$(T "[e]")${C_RESET} ${C_TXT}$(T "Bunları eski yerlerine geri koy")${C_RESET}   ${C_DIM}$(T "[⌫] iptal")${C_RESET}  ▸ "
+  ui_ask '[eEyY]'
   [[ $REPLY == [eEyY] ]] || return
   for l in $lines; do
     f=("${(@ps:\t:)l}"); src=${f[2]}; dest=${f[3]}
@@ -377,22 +392,22 @@ lo_undo() {
 
 # ---------- mod 2: silinmiş uygulamaların kalıntıları ----------
 lo_draw_groups() { # $1 = şüphelileri göster (0/1); gsize/gcount/groups_k/groups_s çağıranın değişkenleri
-  local i=0 g info dots
+  local i=0 g gd info dots
   if (( ${#groups_k} )); then
     ui_section_start "KALINTI · KESİN (silinmiş uygulamalardan)"
     for g in $groups_k; do
-      (( i += 1 )); info="$(TF "%s öğe · %s" ${gcount[$g]} "$(ui_human ${gsize[$g]})")"
-      dots=$(( UEP_W - 12 - ${#i} - ${#g} - ${#info} )); (( dots < 2 )) && dots=2
-      ui_section_row "  ${C_B1}[$i]${C_RESET} ${C_TXT}${g}${C_RESET} ${C_DIM}$(ui_rep . $dots)${C_RESET} ${C_OK}${info}${C_RESET}"
+      (( i += 1 )); info="$(TF "%s öğe · %s" ${gcount[$g]} "$(ui_human ${gsize[$g]})")"; gd="$(ui_vendor "$g")$g"
+      dots=$(( UEP_W - 12 - ${#i} - ${#gd} - ${#info} )); (( dots < 2 )) && dots=2
+      ui_section_row "  ${C_B1}[$i]${C_RESET} ${C_TXT}${gd}${C_RESET} ${C_DIM}$(ui_rep . $dots)${C_RESET} ${C_OK}${info}${C_RESET}"
     done
     ui_section_end
   fi
   if (( $1 && ${#groups_s} )); then
     ui_section_start "ŞÜPHELİ · KANIT ZAYIF (önerilmez)"
     for g in $groups_s; do
-      (( i += 1 )); info="$(TF "%s öğe · %s" ${gcount[$g]} "$(ui_human ${gsize[$g]})")"
-      dots=$(( UEP_W - 12 - ${#i} - ${#g} - ${#info} )); (( dots < 2 )) && dots=2
-      ui_section_row "  ${C_B1}[$i]${C_RESET} ${C_DIM}${g} $(ui_rep . $dots)${C_RESET} ${C_WARN}${info}${C_RESET}"
+      (( i += 1 )); info="$(TF "%s öğe · %s" ${gcount[$g]} "$(ui_human ${gsize[$g]})")"; gd="$(ui_vendor "$g")$g"
+      dots=$(( UEP_W - 12 - ${#i} - ${#gd} - ${#info} )); (( dots < 2 )) && dots=2
+      ui_section_row "  ${C_B1}[$i]${C_RESET} ${C_DIM}${gd} $(ui_rep . $dots)${C_RESET} ${C_WARN}${info}${C_RESET}"
     done
     ui_section_end
   fi
@@ -471,12 +486,12 @@ lo_orphans() {
 
   ui_section_start "ÇÖP KUTUSUNA TAŞINACAKLAR"
   for p in $paths; do
-    ui_section_row "  ${C_DIM}$(ui_cut_left "${p/#$HOME/~}" 68)${C_RESET}"
+    ui_section_row "  ${C_DIM}$(ui_vendor "$p")$(ui_cut_left "${p/#$HOME/~}" 56)${C_RESET}"
     ui_report "$(T "[seçildi]") $p"
   done
   ui_section_end
-  print -rn -- "  ${C_B1}$(T "[e]")${C_RESET} ${C_TXT}$(T "Evet, taşı")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] iptal")${C_RESET}  ▸ "
-  ui_key
+  print -rn -- "  ${C_B1}$(T "[e]")${C_RESET} ${C_TXT}$(T "Evet, taşı")${C_RESET}   ${C_DIM}$(T "[⌫] iptal")${C_RESET}  ▸ "
+  ui_ask '[eEyY]'
   if [[ $REPLY == [eEyY] ]]; then lo_move_list "${paths[@]}"
   else print -r -- "  ${C_DIM}$(T "İptal edildi. Hiçbir şey taşınmadı.")${C_RESET}"
   fi
@@ -487,8 +502,8 @@ lo_orphans() {
 # ---------- mod 1: uygulamayı kalıntılarıyla kaldır ----------
 lo_uninstall() {
   setopt local_options
-  local q a num app name id d e n nl kb hs sp pad i=0 total=0
-  local -a apps files dirs
+  local q a num app name dname id vend vn d e n nl kb hs sp pad i=0 total=0 xtotal=0
+  local -a apps files dirs extra
   ui_clear; ui_header
   print
   print -r -- "  ${C_DIM}$(T "[⌫] geri")${C_RESET}"
@@ -505,11 +520,11 @@ lo_uninstall() {
   if (( ${#apps} == 0 )); then print -r -- "  ${C_WARN}$(T "Bu isimle uygulama bulunamadı.")${C_RESET}"; ui_pause; return; fi
 
   print
-  for a in $apps; do (( i += 1 )); print -r -- "  ${C_B1}[$i]${C_RESET} ${C_TXT}${a:t:r}${C_RESET} ${C_DIM}${a:h}${C_RESET}"; done
+  for a in $apps; do (( i += 1 )); print -r -- "  ${C_B1}[$i]${C_RESET} ${C_TXT}$(lo_app_name "$a")${C_RESET} ${C_DIM}${a:h}${C_RESET}"; done
   print -rn -- "  ${C_B1}$(T "Numara ▸")${C_RESET} "
   ui_readline num || return
   [[ $num == <-> ]] && (( num >= 1 && num <= ${#apps} )) || return
-  app=${apps[$num]}; name=${app:t:r}
+  app=${apps[$num]}; name=${app:t:r}; dname=$(lo_app_name "$app")
   id=$(lo_bundle_id "$app"); id=${id:l}
 
   if [[ $id == com.apple.* || $app == */System/* ]]; then
@@ -517,11 +532,11 @@ lo_uninstall() {
   fi
   if [[ $id == com.adobe.* || $id == com.microsoft.* ]]; then
     print
-    print -r -- "  ${C_WARN}$(TF "! %s kendi kaldırıcısıyla silinmeli." "$name")${C_RESET}"
+    print -r -- "  ${C_WARN}$(TF "! %s kendi kaldırıcısıyla silinmeli." "$dname")${C_RESET}"
     print -r -- "  ${C_DIM}$(T "Adobe: Creative Cloud > Uygulamalar > ... > Kaldır.")${C_RESET}"
     print -r -- "  ${C_DIM}$(T "Sonra [2] Silinmiş uygulamaların kalıntılarını bul ile geride kalanları temizle.")${C_RESET}"
-    print -rn -- "  ${C_B1}$(T "[d]")${C_RESET} ${C_TXT}$(T "Yine de devam et")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] vazgeç")${C_RESET} ▸ "
-    ui_key
+    print -rn -- "  ${C_B1}$(T "[d]")${C_RESET} ${C_TXT}$(T "Yine de devam et")${C_RESET}   ${C_DIM}$(T "[⌫] vazgeç")${C_RESET} ▸ "
+    ui_ask '[dDcC]'
     [[ $REPLY == [dDcC] ]] || return
   fi
   ui_report_start "uninstall_${name// /_}"
@@ -540,7 +555,7 @@ lo_uninstall() {
       n=$(lo_norm "${e:t}"); nl=${${e:t}:l}; nl=${nl%.plist}
       lo_never "$n" && continue
       lo_is_safe "$n" && continue
-      if [[ -n $id && ( $n == $id || $n == $id.* ) ]] || [[ $nl == ${name:l} ]]; then
+      if [[ -n $id && ( $n == $id || $n == $id.* ) ]] || [[ $nl == ${name:l} || $nl == ${dname:l} ]]; then
         files+=("$e")
       fi
     done
@@ -554,14 +569,34 @@ lo_uninstall() {
   files+=($shortcuts)
   files=( ${(u)files} )
 
+  # aynı firmanın kalıntıları (ör. oyunun launcher'ı): sadece öneri, sen eklemezsen dokunulmaz.
+  # Firmanın başka uygulaması hâlâ yüklüyse hiç önerilmez (ortak dosyalar olabilir).
+  if [[ -n $id && $id == *.*.* ]]; then
+    vend=${(j:.:)${(s:.:)id}[1,2]}
+    [[ $vend == (com|io).(github|gitlab) ]] && vend=${(j:.:)${(s:.:)id}[1,3]}
+    if ! lo_vendor_other "$vend" "$app"; then
+      for d in $dirs; do
+        [[ -d $d ]] || continue
+        for e in "$d"/*(N); do
+          (( ${files[(Ie)$e]} )) && continue
+          n=$(lo_norm "${e:t}")
+          [[ $n == $vend.* ]] || continue
+          lo_never "$n" && continue
+          lo_is_safe "$n" && continue
+          extra+=("$e")
+        done
+      done
+    fi
+  fi
+
   # çalışıyor mu? (program adı uygulama adından farklı olabilir: süreçlerin yoluna bakılır)
   lo_quit_running "$name" "$id" "$files[@]" || { ui_pause; return; }
 
-  ui_section_start "$(T "KALDIRILACAK") · ${name}"
+  ui_section_start "$(T "KALDIRILACAK") · ${dname}"
   for e in $files; do
     kb=$(lo_size_kb "$e"); (( total += kb ))
     hs=$(ui_human $kb)
-    sp=$(ui_cut_left "${e/#$HOME/~}" $(( UEP_W - 20 )))
+    vn=$(ui_vendor "$e"); sp="${vn}$(ui_cut_left "${e/#$HOME/~}" $(( UEP_W - 20 - ${#vn} )))"
     pad=$(( UEP_W - 6 - ${#sp} - ${#hs} )); (( pad < 1 )) && pad=1
     if (( ${shortcuts[(Ie)$e]} )); then hs="$(T "kısayol") · $hs"; pad=$(( UEP_W - 6 - ${#sp} - ${#hs} )); (( pad < 1 )) && pad=1; fi
     ui_section_row "  ${C_TXT}${sp}${C_RESET}$(ui_rep ' ' $pad)${C_DIM}${hs}${C_RESET}"
@@ -569,8 +604,28 @@ lo_uninstall() {
   done
   ui_section_end
   print -r -- "  ${C_TXT}$(TF "%s öğe · toplam %s" ${#files} "$(ui_human $total)")${C_RESET}"
-  print -rn -- "  ${C_B1}$(T "[e]")${C_RESET} ${C_TXT}$(T "Evet, hepsini Çöp Kutusu'na taşı")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] iptal")${C_RESET}  ▸ "
-  ui_key
+  if (( ${#extra} )); then
+    ui_section_start "$(T "AYNI FİRMADAN") · ${vend}"
+    for e in $extra; do
+      kb=$(lo_size_kb "$e"); (( xtotal += kb ))
+      hs=$(ui_human $kb)
+      vn=$(ui_vendor "$e"); sp="${vn}$(ui_cut_left "${e/#$HOME/~}" $(( UEP_W - 20 - ${#vn} )))"
+      pad=$(( UEP_W - 6 - ${#sp} - ${#hs} )); (( pad < 1 )) && pad=1
+      ui_section_row "  ${C_TXT}${sp}${C_RESET}$(ui_rep ' ' $pad)${C_DIM}${hs}${C_RESET}"
+    done
+    ui_section_row ""
+    ui_section_row "  ${C_DIM}$(T "Aynı firmanın başka uygulaması yüklü değil. Büyük ihtimalle bunlar da bu uygulamanın.")${C_RESET}"
+    ui_section_end
+    print -rn -- "  ${C_B1}$(T "[f]")${C_RESET} ${C_TXT}$(T "Bunları da ekle")${C_RESET}   ${C_DIM}$(T "[⌫] ekleme")${C_RESET}  ▸ "
+    ui_ask '[fF]'; print
+    if [[ $REPLY == [fF] ]]; then
+      files+=($extra); (( total += xtotal ))
+      for e in $extra; do ui_report "$(T "[seçildi]") $e"; done
+      print -r -- "  ${C_TXT}$(TF "%s öğe · toplam %s" ${#files} "$(ui_human $total)")${C_RESET}"
+    fi
+  fi
+  print -rn -- "  ${C_B1}$(T "[e]")${C_RESET} ${C_TXT}$(T "Evet, hepsini Çöp Kutusu'na taşı")${C_RESET}   ${C_DIM}$(T "[⌫] iptal")${C_RESET}  ▸ "
+  ui_ask '[eEyY]'
   if [[ $REPLY == [eEyY] ]]; then
     lo_launch_stop "${files[@]}"
     lo_move_list "${files[@]}"
@@ -644,14 +699,14 @@ lo_quit_running() {
   print
   print -r -- "  ${C_WARN}$(TF "! %s şu an açık. Açıkken silinirse dosyalarını geri yaratır." "$name")${C_RESET}"
   for c in $rows; do print -r -- "    ${C_DIM}$(ui_cut_left "${c/#$HOME/~}" 66)${C_RESET}"; done
-  print -rn -- "  ${C_B1}$(T "[k]")${C_RESET} ${C_TXT}$(T "Kapat ve devam et")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] iptal")${C_RESET}  ▸ "
-  ui_key
+  print -rn -- "  ${C_B1}$(T "[k]")${C_RESET} ${C_TXT}$(T "Kapat ve devam et")${C_RESET}   ${C_DIM}$(T "[⌫] iptal")${C_RESET}  ▸ "
+  ui_ask '[kKqQ]'
   [[ $REPLY == [kKqQ] ]] || return 1
   [[ -n $id ]] && osascript -e "quit app id \"$id\"" >/dev/null 2>&1
   for i in {1..10}; do lo_running "$@"; (( ${#pids} )) || return 0; sleep 1; done
   print -r -- "  ${C_WARN}$(T "! Kendi kendine kapanmadı.")${C_RESET}"
-  print -rn -- "  ${C_B1}$(T "[z]")${C_RESET} ${C_TXT}$(T "Zorla kapat")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] iptal")${C_RESET}  ▸ "
-  ui_key
+  print -rn -- "  ${C_B1}$(T "[z]")${C_RESET} ${C_TXT}$(T "Zorla kapat")${C_RESET}   ${C_DIM}$(T "[⌫] iptal")${C_RESET}  ▸ "
+  ui_ask '[zZfF]'
   [[ $REPLY == [zZfF] ]] || return 1
   kill $pids 2>/dev/null; sleep 2
   lo_running "$@"; (( ${#pids} )) && kill -9 $pids 2>/dev/null; sleep 1

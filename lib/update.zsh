@@ -46,8 +46,8 @@ up_check() {
   ui_summary
   if (( ${#outdated} )); then
     print
-    print -rn -- "  ${C_B1}$(T "[e]")${C_RESET} ${C_TXT}$(T "Homebrew programlarını şimdi güncelle")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] geç")${C_RESET}  ▸ "
-    ui_key
+    print -rn -- "  ${C_B1}$(T "[e]")${C_RESET} ${C_TXT}$(T "Homebrew programlarını şimdi güncelle")${C_RESET}   ${C_DIM}$(T "[⌫] geç")${C_RESET}  ▸ "
+    ui_ask '[eEyY]'
     if [[ $REPLY == [eEyY] ]]; then
       print
       if HOMEBREW_NO_ENV_HINTS=1 HOMEBREW_NO_AUTO_UPDATE=1 $brew upgrade; then

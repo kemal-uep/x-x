@@ -57,7 +57,7 @@ vr_who() {
   reply=()
   if [[ $p == *.app/* ]]; then a=${p%%.app/*}.app; owner=${a:t:r}; t=$a
   elif [[ $p == *.app ]]; then owner=${p:t:r}; t=$p
-  elif [[ $p == $HOME/Library/*/*/* ]]; then owner=${${p#$HOME/Library/*/}%%/*}; t=$p
+  elif [[ $p == $HOME/Library/*/*/* ]]; then owner=${${p#$HOME/Library/*/}%%/*}; owner="$(ui_vendor "$owner")$owner"; t=$p
   else owner=${p:h:t}; t=$p
     case $p in
       $HOME/Downloads/*) owner=$(T "İndirilenler klasörü") ;;
@@ -78,6 +78,27 @@ vr_who() {
   else risk=unknown
   fi
   reply=("$owner" "$sig" "$risk")
+}
+
+# bulunan dosya nerede -> reply=(etiket renk)   şirket/bulut: sarı · tehlikeli yer: kırmızı · diğer: gri
+vr_where() {
+  local p=$1 l c=$C_DIM
+  case $p in
+    */Library/CloudStorage/Dropbox*|$HOME/Dropbox*)  l="DROPBOX'TA BULUNDU"; c=$C_WARN ;;
+    */Library/CloudStorage/GoogleDrive*)             l="GOOGLE DRIVE'DA BULUNDU"; c=$C_WARN ;;
+    */Library/CloudStorage/OneDrive*)                l="ONEDRIVE'DA BULUNDU"; c=$C_WARN ;;
+    */Library/CloudStorage/*)                        l="BULUT KLASÖRÜNDE BULUNDU"; c=$C_WARN ;;
+    */Library/Mobile\ Documents/*)                   l="iCLOUD DRIVE'DA BULUNDU"; c=$C_WARN ;;
+    $HOME/Documents/*)                               l="BELGELERDE BULUNDU"; c=$C_WARN ;;
+    $HOME/Downloads/*)                               l="İNDİRİLENLERDE BULUNDU"; c=$C_BAD ;;
+    $HOME/Desktop/*)                                 l="MASAÜSTÜNDE BULUNDU"; c=$C_BAD ;;
+    */LaunchAgents/*|*/LaunchDaemons/*)              l="AÇILIŞ ÖĞELERİNDE BULUNDU"; c=$C_BAD ;;
+    $HOME/.Trash/*)                                  l="ÇÖP KUTUSUNDA BULUNDU" ;;
+    $UEP_ROOT/Applications/*|$HOME/Applications/*)   l="UYGULAMALARDA BULUNDU" ;;
+    $HOME/Library/*)                                 l="KÜTÜPHANEDE BULUNDU (~/Library)" ;;
+    *)                                               l="BİLGİSAYARDA BULUNDU" ;;
+  esac
+  reply=("$(T "$l")" "$c")
 }
 
 # bulunan dosyanın bilgi satırları (sonuç kutusunun içinde)
@@ -193,10 +214,11 @@ vr_scan() { # vr_scan hizli|tam
   local -i el=0
   local -a targets args hits spin exist
   cs=$(vr_bin clamscan)
-  if [[ -z $cs ]]; then
+  # ClamAV yoksa Apple motoru tek başına tarar; ikisi de yoksa kurulum söylenir
+  if [[ -z $cs ]] && ! { vr_bin yara >/dev/null && vr_xp_rules >/dev/null; }; then
     ui_clear; ui_header; print
-    print -r -- "  ${C_WARN}$(T "! ClamAV kurulu değil.")${C_RESET}"
-    print -r -- "  ${C_DIM}$(T "Terminal'de şunu çalıştır, sonra tekrar dene:")${C_RESET}  ${C_TXT}brew install clamav${C_RESET}"
+    print -r -- "  ${C_WARN}$(T "! Virüs motoru kurulu değil.")${C_RESET}"
+    print -r -- "  ${C_DIM}$(T "Terminal'de şunu çalıştır, sonra tekrar dene:")${C_RESET}  ${C_TXT}brew install clamav yara${C_RESET}"
     ui_pause; return
   fi
 
@@ -212,15 +234,19 @@ vr_scan() { # vr_scan hizli|tam
 
   ui_clear; ui_header; ui_report_start "virus_${mode}"
   print
-  ui_status "virüs listesi güncelleniyor..."
-  vr_update_db
-  ui_status "$(T "virüs listesi:") $(T "$VR_DB_MSG")"
+  if [[ -n $cs ]]; then
+    ui_status "virüs listesi güncelleniyor..."
+    vr_update_db
+    ui_status "$(T "virüs listesi:") $(T "$VR_DB_MSG")"
+  fi
   ui_status "$(TF "%s tarama başlıyor · %s konum" "$(T "$mname")" ${#exist})"
   print
 
   mkdir -p "$UEP_DATA/reports"
   log="$UEP_DATA/reports/.scan_$$.log"
   : > "$log"
+  pid=0
+  if [[ -n $cs ]]; then
   if vr_clamd_start "$cs"; then
     fast=1
     "$VR_CDS" -c "$VR_CD_CONF" --multiscan -i $exist > "$log" 2>&1 &
@@ -231,6 +257,7 @@ vr_scan() { # vr_scan hizli|tam
     $cs $args $exist > "$log" 2>&1 &
   fi
   pid=$!
+  fi
   # Mac motoru: Apple'ın XProtect kuralları (yara) · ClamAV ile aynı anda çalışır
   # Kurallar Mac programları ve script'ler için: sadece bunlar taranır (tasarım dosyaları, videolar atlanır)
   local yb yr ylog="$UEP_DATA/reports/.xp_$$.log" ylist="$UEP_DATA/reports/.xplist_$$" ypid=0 xp=0
@@ -254,15 +281,15 @@ vr_scan() { # vr_scan hizli|tam
   else
     ui_status "Mac motoru açılamadı · sadece ClamAV"
   fi
-  trap 'cancelled=1; kill $pid 2>/dev/null; (( ypid )) && { pkill -P $ypid 2>/dev/null; kill $ypid 2>/dev/null; }; vr_clamd_stop' INT
-  trap 'kill $pid 2>/dev/null; (( ypid )) && { pkill -P $ypid 2>/dev/null; kill $ypid 2>/dev/null; }; vr_clamd_stop; rm -f -- "$log" "$ylog" "$ylist" "$VR_CD_LOG"; exit 1' HUP TERM   # pencere kapanırsa da motorları kapat
+  trap 'cancelled=1; (( pid )) && kill $pid 2>/dev/null; (( ypid )) && { pkill -P $ypid 2>/dev/null; kill $ypid 2>/dev/null; }; vr_clamd_stop' INT
+  trap '(( pid )) && kill $pid 2>/dev/null; (( ypid )) && { pkill -P $ypid 2>/dev/null; kill $ypid 2>/dev/null; }; vr_clamd_stop; rm -f -- "$log" "$ylog" "$ylist" "$VR_CD_LOG"; exit 1' HUP TERM   # pencere kapanırsa da motorları kapat
 
   spin=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
   local w_scan="taranıyor" w_found="bulunan:" w_cancel="[Ctrl+C] iptal" w_files="dosya"
   i18n_var w_scan; i18n_var w_found; i18n_var w_cancel; i18n_var w_files
   t0=$SECONDS
   print -rn -- $'\e[?25l'
-  while kill -0 $pid 2>/dev/null || { (( ypid )) && kill -0 $ypid 2>/dev/null; }; do
+  while { (( pid )) && kill -0 $pid 2>/dev/null; } || { (( ypid )) && kill -0 $ypid 2>/dev/null; }; do
     (( i += 1 ))
     el=$(( SECONDS - t0 ))
     if (( i % 10 == 1 )); then
@@ -273,7 +300,7 @@ vr_scan() { # vr_scan hizli|tam
     print -rn -- $'\r'"  ${C_B1}${spin[$(( i % 10 + 1 ))]}${C_RESET} ${C_TXT}${w_scan}${C_RESET} ${C_DIM}·${C_RESET} ${C_TXT}$(printf '%02d:%02d' $(( el / 60 )) $(( el % 60 )))${C_RESET}${nfiles:+ ${C_DIM}·${C_RESET} ${C_TXT}${nfiles}${C_RESET} ${C_DIM}${w_files}${C_RESET}} ${C_DIM}· ${w_found}${C_RESET} ${C_TXT}${nfound:-0}${C_RESET}   ${C_DIM}${w_cancel}${C_RESET}"$'\e[K'
     ui_cs 10
   done
-  wait $pid 2>/dev/null
+  (( pid )) && wait $pid 2>/dev/null
   (( ypid )) && wait $ypid 2>/dev/null
   print -rn -- $'\r\e[K\e[?25h'
   vr_clamd_stop
@@ -284,6 +311,7 @@ vr_scan() { # vr_scan hizli|tam
   [[ -n $files ]] || files=$(grep -E '^Scanned files:' "$log" | grep -oE '[0-9]+' | head -1)
   infected=$(grep -E '^Infected files:' "$log" | grep -oE '[0-9]+' | head -1)
   hits=("${(@f)$(grep ' FOUND$' "$log")}"); hits=(${hits:#})
+  [[ -z $cs ]] && (( xp )) && files=$(wc -l < "$ylist" 2>/dev/null) && files=${files// /}
   # Apple XProtect bulguları: "KURAL /yol" -> aynı biçime çevir, ClamAV'in de bulduğu dosyayı iki kez sayma
   if (( xp )); then
     local h dup
@@ -307,17 +335,20 @@ vr_scan() { # vr_scan hizli|tam
   (( cancelled )) && ui_check warn "Tarama" "YARIDA KESİLDİ"
   [[ -n $files ]] && ui_check info "Taranan dosya" "$files"
   ui_check info "Süre" "$(printf '%02d:%02d' $(( el / 60 )) $(( el % 60 )))"
-  if (( xp )); then ui_check info "Motorlar" "ClamAV + Apple XProtect"
+  if (( xp )) && [[ -n $cs ]]; then ui_check info "Motorlar" "ClamAV + Apple XProtect"
+  elif (( xp )); then ui_check warn "Motorlar" "sadece Apple XProtect" "brew install clamav"
   else ui_check warn "Motorlar" "sadece ClamAV" "brew install yara"
   fi
   if (( ${#hits} == 0 )); then
     (( cancelled )) || ui_check ok "Virüslü dosya" "0"
   else
     ui_check bad "Virüslü dosya" "${#hits}"
-    typeset -A W_OWN W_SIG W_RISK
+    typeset -A W_OWN W_SIG W_RISK W_WL W_WC
     for l in $hits; do
       p=${l%: *}; vname=${${l##*: }% FOUND}
       vr_who "$p"; W_OWN[$p]=${reply[1]}; W_SIG[$p]=${reply[2]}; W_RISK[$p]=${reply[3]}
+      vr_where "$p"; W_WL[$p]=${reply[1]}; W_WC[$p]=${reply[2]}
+      ui_detail "▶ ${W_WL[$p]}" "${C_BOLD}${W_WC[$p]}"
       ui_detail "✘ $(ui_cut_left "${p/#$HOME/~}" 44)  [${vname}]" $C_BAD
       vr_who_lines "$p"
     done
@@ -332,8 +363,8 @@ vr_scan() { # vr_scan hizli|tam
   if (( ${#hits} )); then
     print
     print -r -- "  ${C_DIM}$(T "Karantina dosyayı silmez: güvenli bir klasöre taşır, istersen geri alırsın.")${C_RESET}"
-    print -rn -- "  ${C_B1}$(T "[t]")${C_RESET} ${C_TXT}$(T "Tek tek sor")${C_RESET}   ${C_B1}$(T "[h]")${C_RESET} ${C_TXT}$(T "Hepsini karantinaya al")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] dokunma")${C_RESET}  ▸ "
-    ui_key
+    print -rn -- "  ${C_B1}$(T "[t]")${C_RESET} ${C_TXT}$(T "Tek tek sor")${C_RESET}   ${C_B1}$(T "[h]")${C_RESET} ${C_TXT}$(T "Hepsini karantinaya al")${C_RESET}   ${C_DIM}$(T "[⌫] dokunma")${C_RESET}  ▸ "
+    ui_ask '[tThHaA]'
     if [[ $REPLY == [tThHaA] ]]; then
       local one=0 skip=0; [[ $REPLY == [tT] ]] && one=1
       ok=0; fail=0
@@ -341,6 +372,7 @@ vr_scan() { # vr_scan hizli|tam
         p=${l%: *}; vname=${${l##*: }% FOUND}
         if (( one )); then
           print
+          print -r -- "  ${C_BOLD}${W_WC[$p]}▶ ${W_WL[$p]}${C_RESET}"
           print -r -- "  ${C_BAD}✘${C_RESET} ${C_TXT}${p/#$HOME/~}${C_RESET}  ${C_DIM}[${vname}]${C_RESET}"
           print -r -- "    ${C_DIM}$(T "sahibi:") ${W_OWN[$p]} · $(T "imza:") ${W_SIG[$p]:-$(T "yok")}${C_RESET}"
           case ${W_RISK[$p]} in
@@ -348,8 +380,8 @@ vr_scan() { # vr_scan hizli|tam
             danger) print -r -- "    ${C_BAD}→ $(T "imzasız ve tehlikeli bir yerde · karantinaya al")${C_RESET}" ;;
             *)      print -r -- "    ${C_WARN}→ $(T "imzasız · emin değilsen dokunma")${C_RESET}" ;;
           esac
-          print -rn -- "    ${C_B1}$(T "[k]")${C_RESET} ${C_TXT}$(T "Karantinaya al")${C_RESET}   ${C_DIM}$(T "[başka tuş] geç")${C_RESET}  ▸ "
-          ui_key; print
+          print -rn -- "    ${C_B1}$(T "[k]")${C_RESET} ${C_TXT}$(T "Karantinaya al")${C_RESET}   ${C_DIM}$(T "[⌫] geç")${C_RESET}  ▸ "
+          ui_ask '[kKyY]'; print
           [[ $REPLY == [kKyY] ]] || { (( skip += 1 )); ui_report "$(T "[geçildi]") $p"; continue; }
         fi
         if [[ -e $p ]] && vr_quarantine "$p" "$vname"; then (( ok += 1 )); ui_report "$(T "[karantina]") $p"
@@ -481,8 +513,8 @@ qr_menu() {
     id=${f[1]}; src=${f[4]}; dest=${f[5]}
     print
     print -r -- "  ${C_TXT}${src:t}${C_RESET}  ${C_DIM}· $(T "sebep:") ${f[3]}${C_RESET}"
-    print -rn -- "  ${C_B1}$(T "[g]")${C_RESET} ${C_TXT}$(T "Geri yükle")${C_RESET}   ${C_B1}$(T "[s]")${C_RESET} ${C_TXT}$(T "Kalıcı sil")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] vazgeç")${C_RESET}  ▸ "
-    ui_key
+    print -rn -- "  ${C_B1}$(T "[g]")${C_RESET} ${C_TXT}$(T "Geri yükle")${C_RESET}   ${C_B1}$(T "[s]")${C_RESET} ${C_TXT}$(T "Kalıcı sil")${C_RESET}   ${C_DIM}$(T "[⌫] vazgeç")${C_RESET}  ▸ "
+    ui_ask '[gGrRsSdD]'
     case $REPLY in
       g|G|r|R) qr_restore "$id" "$src" "$dest"; ui_pause ;;
       s|S|d|D)

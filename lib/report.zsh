@@ -56,8 +56,51 @@ rp_full() {
   print -r -- "  ${C_DIM}$(T "Rapor kaydedildi:") ${file/#$HOME/~}${C_RESET}"
   UEP_REPORT=""
   print
-  print -rn -- "  ${C_B1}[o]${C_RESET} ${C_TXT}$(T "Raporu aç")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] geri")${C_RESET}  ▸ "
-  ui_key
+  print -rn -- "  ${C_B1}[o]${C_RESET} ${C_TXT}$(T "Raporu aç")${C_RESET}   ${C_DIM}$(T "[⌫] geri")${C_RESET}  ▸ "
+  ui_ask '[oO]'
   [[ $REPLY == [oO] ]] && open -e "$file" 2>/dev/null
   return 0
+}
+
+# ---------- r. Raporlar: oku, sil ----------
+# Raporlar 7 gün sonra kendiliğinden silinir (uep açılırken). Burada istersen daha önce silersin.
+rp_menu() {
+  local num f i
+  local -a reps
+  while true; do
+    reps=( $UEP_DATA/reports/*.txt(N.om) )
+    ui_clear; ui_header; print
+    ui_section_start "RAPORLAR"
+    if (( ${#reps} == 0 )); then
+      ui_section_row "  ${C_DIM}$(T "Hiç rapor yok.")${C_RESET}"
+    else
+      i=0
+      for f in $reps; do
+        (( i += 1 )); (( i > 20 )) && break
+        ui_section_row "  ${C_B1}[$i]${C_RESET} ${C_TXT}${f:t:r}${C_RESET}"
+      done
+      (( ${#reps} > 20 )) && ui_section_row "  ${C_DIM}$(TF "... ve %s rapor daha" $(( ${#reps} - 20 )))${C_RESET}"
+    fi
+    ui_section_row ""
+    ui_section_row "  ${C_DIM}$(T "Raporlar 7 gün sonra kendiliğinden silinir.")${C_RESET}"
+    ui_section_row ""
+    (( ${#reps} )) && ui_section_row "  ${C_B1}[s]${C_RESET} ${C_B2}▸${C_RESET} ${C_TXT}$(T "Hepsini sil")${C_RESET}"
+    ui_section_row "  ${C_B1}[0]${C_RESET} ${C_B2}▸${C_RESET} ${C_DIM}$(T "Geri  (ya da ⌫)")${C_RESET}"
+    ui_section_end
+    print -rn -- "  ${C_B1}$(T "Okumak için numara yaz, Enter ▸")${C_RESET} "
+    ui_readline num || return
+    [[ -z $num || $num == 0 || $num == [qQ] ]] && return
+    if [[ $num == [sS] ]] && (( ${#reps} )); then
+      print -rn -- "  ${C_WARN}$(TF "%s rapor kalıcı silinecek." ${#reps})${C_RESET}  ${C_B1}$(T "[e]")${C_RESET} ${C_TXT}$(T "Evet")${C_RESET}   ${C_DIM}$(T "[⌫] vazgeç")${C_RESET}  ▸ "
+      ui_ask '[eEyY]'; print
+      [[ $REPLY == [eEyY] ]] && rm -f -- $reps
+      continue
+    fi
+    [[ $num == <-> ]] && (( num >= 1 && num <= ${#reps} && num <= 20 )) || continue
+    f=${reps[$num]}
+    less -R -Ps"$(T "q = kapat · ↑↓ = kaydır")" -- "$f"
+    print -rn -- "  ${C_B1}$(T "[s]")${C_RESET} ${C_TXT}$(T "Bu raporu sil")${C_RESET}   ${C_DIM}$(T "[⌫] geri")${C_RESET}  ▸ "
+    ui_ask '[sS]'; print
+    [[ $REPLY == [sS] ]] && rm -f -- "$f"
+  done
 }

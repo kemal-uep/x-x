@@ -96,10 +96,57 @@ ui_key() { # tek tuş oku -> REPLY
   print
 }
 
-ui_pause() {
+# firmanın okunur adı: com.google.keystone.agent ya da ~/Library/Preferences/com.adobe.x.plist -> "(GOOGLE) " / "(ADOBE) "
+# com.firma.xxx biçiminde olmayan adlar için boş döner
+ui_vendor() {
+  local n=${${1:t}:l} v
+  n=${n%.plist}; n=${n#group.}
+  [[ $n == [a-z0-9](#c10).* ]] && n=${n#*.}
+  [[ $n == (com|net|org|io|app|co|de|me|dev|us|ai|tv|jp|fr|uk|ch|it|nl|se|ru|cn|tw|tr|eu|at|ca|cc).[a-z0-9_-]##.* ]] || return 0
+  local -a parts=( ${(s:.:)n} )
+  v=${parts[2]}
+  case $v in
+    google|chrome)            v=GOOGLE ;;
+    adobe)                    v=ADOBE ;;
+    microsoft)                v=MICROSOFT ;;
+    apple)                    v=APPLE ;;
+    dropbox|getdropbox)       v=DROPBOX ;;
+    apphousekitchen)          v=ALDENTE ;;
+    daisydiskapp)             v=DAISYDISK ;;
+    logi|logitech)            v=LOGITECH ;;
+    cloudflare)               v=CLOUDFLARE ;;
+    valvesoftware)            v=STEAM ;;
+    epicgames)                v="EPIC GAMES" ;;
+    paradoxinteractive)       v=PARADOX ;;
+    zaumstudio)               v="ZA/UM" ;;
+    zoom|zoomvideo)           v=ZOOM ;;
+    spotify)                  v=SPOTIFY ;;
+    docker)                   v=DOCKER ;;
+    tailscale)                v=TAILSCALE ;;
+    openai)                   v=OPENAI ;;
+    anthropic)                v=ANTHROPIC ;;
+    github)                   v=GITHUB ;;
+    jetbrains)                v=JETBRAINS ;;
+    *)                        v=${v:u} ;;
+  esac
+  print -rn -- "($v) "
+}
+
+# sadece geçerli tuşu ya da ⌫ kabul et -> REPLY. Yanlışlıkla basılan diğer tuşlar yok sayılır.
+ui_ask() { # ui_ask '[eEyY]'
+  local pat=$1 k
+  while read -sk1 k; do
+    if ui_is_back "$k" || [[ $k == ${~pat} ]]; then REPLY=$k; break; fi
+  done
   print
-  print -rn -- "  ${C_DIM}$(T "[⌫] geri  ·  ya da herhangi bir tuş")${C_RESET}"
-  read -sk1
+}
+
+ui_pause() { # sonuç ekranı: sadece ⌫ ile geri (yanlış tuş ekranı kapatmaz)
+  local k
+  print
+  print -rn -- "  ${C_DIM}$(T "[⌫] geri")${C_RESET}"
+  while read -sk1 k; do ui_is_back "$k" && break; done
+  print
 }
 
 # satır okuma: boşken ⌫ basılırsa 1 döner (= geri)
@@ -336,6 +383,7 @@ ui_menu() {
   ui_menu_item 7 "Güncelle" ""
   ui_menu_item 8 "TAM RAPOR" "hepsini çalıştır"
   ui_menu_item 9 "Kalıntı temizleyici" ""
+  ui_menu_item r "Raporlar" "7 gün sonra kendiliğinden silinir"
   ui_row ""
   ui_menu_item 0 "Çıkış" ""
   ui_row ""

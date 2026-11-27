@@ -21,6 +21,9 @@ uep_exit() {
 trap uep_exit INT TERM
 
 mkdir -p "$UEP_DATA/state" "$UEP_DATA/reports"
+# raporlar 7 gün sonra kendiliğinden silinir; yarım kalan taramaların geçici dosyaları 1 gün sonra
+find "$UEP_DATA/reports" -maxdepth 1 -type f -name '*.txt' -mtime +6 -delete 2>/dev/null
+find "$UEP_DATA/reports" -maxdepth 1 -type f -name '.*' -mtime +0 -delete 2>/dev/null
 
 # dil: kayıtlıysa onu kullan, değilse ilk açılışta sor
 i18n_load
@@ -49,6 +52,7 @@ while true; do
     7) up_check ;;
     8) rp_full ;;
     9) lo_menu ;;
+    r|R) rp_menu ;;
     l|L) ui_lang_toggle ;;
     0|q|Q)
       ui_clear

@@ -1,6 +1,7 @@
 # x/x — 2. Başlangıç takibi
 # Mac açılınca kendiliğinden çalışan öğeleri listeler, öncekiyle karşılaştırır.
-# Sadece okur. Hiçbir öğeyi silmez veya durdurmaz.
+# Kendiliğinden hiçbir öğeyi silmez veya durdurmaz.
+# Programı artık diskte olmayan "ölü" kayıtları ayrıca gösterir; sen istersen Çöp Kutusu'na taşır (geri alınabilir).
 
 ST_GROUPS=(
   "$HOME/Library/LaunchAgents|KULLANICI AJANLARI"
@@ -9,7 +10,7 @@ ST_GROUPS=(
   "cron|ZAMANLANMIŞ GÖREVLER (CRON)"
 )
 ST_BASE="$UEP_DATA/state/startup_baseline.txt"
-typeset -ga ST_CUR
+typeset -ga ST_CUR ST_DEAD
 ST_FIRST=0; ST_NEW=0; ST_CHANGED=0; ST_REMOVED=0
 
 # satır biçimi: grup|dosya|etiket|program|özet
@@ -43,6 +44,7 @@ st_signer() { # imzalayan şirket / UNSIGNED / MISSING
   print -r -- "${a:-UNSIGNED}"
 }
 
+
 st_save() { mkdir -p "$UEP_DATA/state"; print -rl -- $ST_CUR > "$ST_BASE"; }
 
 st_run() {
@@ -51,7 +53,7 @@ st_run() {
   local -a fields
 
   mkdir -p "$UEP_DATA/state"
-  ST_FIRST=0; ST_NEW=0; ST_CHANGED=0; ST_REMOVED=0
+  ST_FIRST=0; ST_NEW=0; ST_CHANGED=0; ST_REMOVED=0; ST_DEAD=()
   [[ -f $ST_BASE ]] || ST_FIRST=1
   ST_CUR=("${(@f)$(st_collect)}"); ST_CUR=(${ST_CUR:#})
   if (( ! ST_FIRST )); then
@@ -78,12 +80,16 @@ st_run() {
 
       signer=$(st_signer "$prog")
       case $signer in
-        MISSING)  note="$(T "program dosyası yok:") ${prog/#$HOME/~}" ;;
+        MISSING)  note="$(T "program dosyası yok:") ${prog/#$HOME/~}"
+                  # ölü kayıt: tam yollu programı silinmiş, Apple'ın değil
+                  [[ $dir != cron && $prog == /* && $label != com.apple.* ]] && ST_DEAD+=("$dir/${fields[2]}") ;;
         UNSIGNED) note="$(T "imzasız:") ${prog/#$HOME/~}"; [[ $state == ok ]] && { state=warn; value="İMZASIZ"; } ;;
         "?")      note="" ;;
         *)        note="$(T "imza:") ${signer}" ;;
       esac
-      ui_check $state "$label" "$value" "$note"
+      if [[ $dir == cron ]]; then ui_check $state "$label" "$value" "$note"
+      else ui_check $state "$(ui_vendor "$label")$label" "$value" "$note"
+      fi
     done
     (( count == 0 )) && ui_section_row "  ${C_DIM}$(T "(boş)")${C_RESET}"
     ui_section_end
@@ -95,7 +101,7 @@ st_run() {
       (( ST_REMOVED += 1 ))
       (( ST_REMOVED == 1 )) && ui_section_start "BAŞLANGIÇ · KALDIRILANLAR"
       fields=("${(@s:|:)k}")
-      ui_check warn "${fields[3]}" "KALDIRILDI"
+      ui_check warn "$(ui_vendor "${fields[3]}")${fields[3]}" "KALDIRILDI"
     done
     (( ST_REMOVED )) && ui_section_end
   fi
@@ -117,11 +123,34 @@ st_check() {
     print -r -- "  ${C_TXT}$(T "Sonuç:")${C_RESET} ${C_BAD}$(TF "%s yeni" $ST_NEW)${C_RESET}  ·  ${C_WARN}$(TF "%s değişmiş" $ST_CHANGED)${C_RESET}  ·  ${C_WARN}$(TF "%s kaldırılmış" $ST_REMOVED)${C_RESET}"
     print -r -- "  ${C_DIM}$(T "Bunları sen yaptıysan (program kurdun ya da sildin) listeyi güncelle.")${C_RESET}"
     print
-    print -rn -- "  ${C_B1}$(T "[k]")${C_RESET} ${C_TXT}$(T "Tanıyorum, listeyi güncelle")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] geç")${C_RESET}  ▸ "
-    ui_key
+    print -rn -- "  ${C_B1}$(T "[k]")${C_RESET} ${C_TXT}$(T "Tanıyorum, listeyi güncelle")${C_RESET}   ${C_DIM}$(T "[⌫] geç")${C_RESET}  ▸ "
+    ui_ask '[kKyY]'
     if [[ $REPLY == [kKyY] ]]; then
       st_save
       print -r -- "  ${C_OK}$(T "✔ Güvenilir liste güncellendi.")${C_RESET}"
+    fi
+  fi
+  if (( ${#ST_DEAD} )); then
+    local f
+    ui_section_start "$(T "ÖLÜ KAYITLAR")"
+    for f in $ST_DEAD; do ui_section_row "  ${C_TXT}$(ui_vendor "$f")$(ui_cut_left "${f/#$HOME/~}" $(( UEP_W - 22 )))${C_RESET}"; done
+    ui_section_row ""
+    ui_section_row "  ${C_DIM}$(T "Bunların çalıştıracağı program silinmiş. Kalıntıdır, bir işe yaramaz.")${C_RESET}"
+    ui_section_end
+    print -rn -- "  ${C_B1}$(T "[t]")${C_RESET} ${C_TXT}$(T "Çöp Kutusu'na taşı")${C_RESET}   ${C_DIM}$(T "[⌫] dokunma")${C_RESET}  ▸ "
+    ui_ask '[tT]'; print
+    if [[ $REPLY == [tT] ]]; then
+      # şifre gerekiyorsa önce açıkla, sonra sor (kaydı durdurmak da şifre ister)
+      local needs=0
+      for f in $ST_DEAD; do [[ -w ${f:h} ]] || needs=1; done
+      if (( needs )); then
+        print -r -- "  ${C_DIM}$(T "Bazı dosyalar sistem klasöründe. Mac şifren istenecek.")${C_RESET}"
+        sudo -v || { print -r -- "  ${C_BAD}$(T "Şifre girilmedi, işlem iptal.")${C_RESET}"; ui_report_done; ui_pause; return; }
+      fi
+      lo_launch_stop "${ST_DEAD[@]}"
+      LO_SUDO_OK=$needs lo_move_list "${ST_DEAD[@]}"
+    else
+      print -r -- "  ${C_DIM}$(T "Dokunulmadı.")${C_RESET}"
     fi
   fi
   ui_report ""

@@ -142,8 +142,8 @@ cf_check() {
     print -r -- "  ${C_TXT}$(TF "%s dosyada değişiklik var." $CF_PENDING)${C_RESET} ${C_DIM}$(T "(+ eklenen satır, − silinen satır)")${C_RESET}"
     print -r -- "  ${C_DIM}$(T "Bunları sen yaptıysan ya da kurduğun bir program yaptıysa kabul et.")${C_RESET}"
     print
-    print -rn -- "  ${C_B1}$(T "[k]")${C_RESET} ${C_TXT}$(T "Tanıyorum, yeni hali kaydet")${C_RESET}   ${C_DIM}$(T "[⌫ / başka tuş] geç")${C_RESET}  ▸ "
-    ui_key
+    print -rn -- "  ${C_B1}$(T "[k]")${C_RESET} ${C_TXT}$(T "Tanıyorum, yeni hali kaydet")${C_RESET}   ${C_DIM}$(T "[⌫] geç")${C_RESET}  ▸ "
+    ui_ask '[kKyY]'
     if [[ $REPLY == [kKyY] ]]; then
       cf_save
       print -r -- "  ${C_OK}$(T "✔ Kaydedildi.")${C_RESET}"
